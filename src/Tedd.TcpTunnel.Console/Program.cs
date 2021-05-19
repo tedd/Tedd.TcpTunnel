@@ -17,7 +17,14 @@ namespace Tedd.TcpTunnel.Console
         /// <param name="isClient">Will compress outgoing stream, set to false on server side.</param>
         static async Task<int> Main(int listenPort, string remoteHost, int remotePort, bool isClient, string listenAddress = null)
         {
-            var listener = new Listener(listenAddress, listenPort, remoteHost, remotePort);
+            var listener = new Listener(new TcpTunnelSettings()
+            {
+                ListenAddress = listenAddress,
+                ListenPort = listenPort,
+                RemoteHost = remoteHost,
+                RemotePort = remotePort,
+                IsClient = isClient
+            });
             using var cancellationTokenSource = new CancellationTokenSource();
             await listener.Start(cancellationTokenSource.Token);
             return 0;

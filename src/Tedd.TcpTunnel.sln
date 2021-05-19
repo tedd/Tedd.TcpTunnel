@@ -3,9 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31306.274
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tedd.TcpTunnel.Console", "Tedd.TcpTunnel.Console\Tedd.TcpTunnel.Console.csproj", "{B350965A-438C-4C89-9766-BF98A0392CCD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Tedd.TcpTunnel.Console", "Tedd.TcpTunnel.Console\Tedd.TcpTunnel.Console.csproj", "{B350965A-438C-4C89-9766-BF98A0392CCD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tedd.TcpTunnel", "Tedd.TcpTunnel\Tedd.TcpTunnel.csproj", "{11E86B26-EEF8-4770-8547-54E262E81148}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Tedd.TcpTunnel", "Tedd.TcpTunnel\Tedd.TcpTunnel.csproj", "{11E86B26-EEF8-4770-8547-54E262E81148}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tedd.TcpTunnel.Tests", "Tedd.TcpTunnel.Tests\Tedd.TcpTunnel.Tests.csproj", "{57BD599D-A932-4D56-8E95-94328F53B1B6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{11E86B26-EEF8-4770-8547-54E262E81148}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{11E86B26-EEF8-4770-8547-54E262E81148}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{11E86B26-EEF8-4770-8547-54E262E81148}.Release|Any CPU.Build.0 = Release|Any CPU
+		{57BD599D-A932-4D56-8E95-94328F53B1B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{57BD599D-A932-4D56-8E95-94328F53B1B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{57BD599D-A932-4D56-8E95-94328F53B1B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{57BD599D-A932-4D56-8E95-94328F53B1B6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

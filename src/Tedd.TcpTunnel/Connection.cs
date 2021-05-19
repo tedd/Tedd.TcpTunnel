@@ -12,13 +12,14 @@ namespace Tedd.TcpTunnel
 {
     internal class Connection
     {
+        private readonly TcpTunnelSettings _settings;
         private readonly Socket _socket1;
         private readonly Socket _socket2;
         private readonly int _bufferSize = 4096 * 10;
-        public bool IsClient = true;
-
-        public Connection(Socket socket1, Socket socket2)
+        
+        public Connection(TcpTunnelSettings settings, Socket socket1, Socket socket2)
         {
+            _settings = settings;
             _socket1 = socket1;
             _socket2 = socket2;
         }
@@ -29,8 +30,8 @@ namespace Tedd.TcpTunnel
             {
                 using var cancellationTokenSource = new CancellationTokenSource();
                 Task.WaitAll(
-                    ProcessStreamAsync(_socket1, _socket2, cancellationTokenSource, IsClient),
-                    ProcessStreamAsync(_socket2, _socket1, cancellationTokenSource, !IsClient)
+                    ProcessStreamAsync(_socket1, _socket2, cancellationTokenSource, _settings.IsClient),
+                    ProcessStreamAsync(_socket2, _socket1, cancellationTokenSource, !_settings.IsClient)
                 );
             }
             finally
