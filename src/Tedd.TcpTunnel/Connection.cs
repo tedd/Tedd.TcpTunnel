@@ -1,5 +1,7 @@
-﻿using System;
+﻿using K4os.Compression.LZ4.Streams;
+using System;
 using System.Buffers;
+using System.IO;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Net.Sockets;
@@ -16,7 +18,7 @@ namespace Tedd.TcpTunnel
         private readonly Socket _socket1;
         private readonly Socket _socket2;
         private readonly int _bufferSize = 4096 * 10;
-        
+
         public Connection(TcpTunnelSettings settings, Socket socket1, Socket socket2)
         {
             _settings = settings;
@@ -60,120 +62,38 @@ namespace Tedd.TcpTunnel
 
         private async Task ProcessStreamAsync(Socket socket1, Socket socket2, CancellationTokenSource cancellationTokenSource, bool isClient)
         {
-            var pipe = new Pipe();
-            Task writing = FillPipeAsync(socket1, pipe.Writer, cancellationTokenSource);
-            Task reading = ReadPipeAsync(socket2, pipe.Reader, cancellationTokenSource, isClient);
-
-            await Task.WhenAny(reading, writing);
-            cancellationTokenSource.Cancel();
-            await Task.WhenAll(reading, writing);
-
-        }
-
-        private async Task FillPipeAsync(Socket socket, PipeWriter writer, CancellationTokenSource cancellationTokenSource)
-        {
-            var socketAddr = socket.RemoteEndPoint.ToString();
-            //const int minimumBufferSize = 4096;
-
-            while (true)
+            if (isClient)
             {
-                // Allocate at least 512 bytes from the PipeWriter
-                Memory<byte> memory = writer.GetMemory(_bufferSize);
-                try
-                {
-                    int bytesRead = 0;
-                    try
-                    {
-                        bytesRead = await socket.ReceiveAsync(memory, SocketFlags.None, cancellationTokenSource.Token);
-                    }
-                    catch (System.OperationCanceledException)
-                    {
-                        break;
-                    } // CancellationToken
-                    if (bytesRead == 0)
-                    {
-                        break;
-                    }
-                    // Tell the PipeWriter how much was read from the Socket
-                    writer.Advance(bytesRead);
-                }
-                catch (Exception ex)
-                {
-                    Listener.Error($"Remote socket read error: {ex}");
-                    break;
-                }
-
-                // Make the data available to the PipeReader
-                FlushResult result = await writer.FlushAsync();
-
-                if (result.IsCompleted)
-                {
-                    break;
-                }
+                var s1 = socket1;
+                socket1 = socket2;
+                socket2 = s1;
             }
-            // Tell the PipeReader that there's no more data coming
-            writer.Complete();
-            Listener.Debug($"Socket reader for socket {socketAddr} closed.");
+            using var ns1 = new NetworkStream(socket1, false);
+            using var ns2 = new NetworkStream(socket2, false);
+            //using var ms2 = new MemoryStream();
+            using var ms2 = new BufferedStream();
+            //using var cs1 = new GZipStream(ns1, CompressionLevel.Optimal, true);
+            //using var cs2 = new GZipStream(ms2, CompressionMode.Decompress, true);
+            using var cs1 = LZ4Stream.Encode(ns1,null,true);
+            using var cs2 = LZ4Stream.Decode(ms2, null, true);
+
+            var t1 = ns2.CopyToAsyncWithFlush(cs1, 0, cancellationTokenSource.Token); //   COMPRESS: Copy from socket2->ns2 to socket1 (write to cs1->ns1->socket1)
+            var t2 = ns1.CopyToAsyncWithFlush(ms2, 0, cancellationTokenSource.Token); // DECOMPRESS: Copy from socket1->ns1 to ms2 (write to ms2->cs2)
+            var t3 = cs2.CopyToAsyncWithFlush(ns2, 0, cancellationTokenSource.Token); // DECOMPRESS: Copy from cs2 to socket2 (write to ns2->socket2)
+            
+            ns1.WriteAsync()
+            // No compression
+            //var t1 = ns2.CopyToAsyncWithFlush(ns1, 0, cancellationTokenSource.Token);
+            //var t2 = ns1.CopyToAsyncWithFlush(ns2, 0, cancellationTokenSource.Token);
+
+            Task.WaitAll(
+                t1,
+                t2,
+                t3
+            );
         }
 
-        private async Task ReadPipeAsync(Socket socket, PipeReader reader, CancellationTokenSource cancellationTokenSource, bool isClient)
-        {
-            var socketAddr = socket.RemoteEndPoint.ToString();
-            var tempBuffer = new byte[_bufferSize + 4986];
-            var tb = new ReadOnlyMemory<byte>(tempBuffer);
-            using var brotliEncoder = new BrotliEncoder(5, 16);
-            using var brotliDecoder = new BrotliDecoder();
-            while (true)
-            {
-                ReadResult result = await reader.ReadAsync();
 
-                ReadOnlySequence<byte> buffer = result.Buffer;
-                SequencePosition? position = null;
 
-                //do
-                {
-                    //BrotliEncoder.TryCompress(buffer, tempBuffer, out var length, 5, 16);
-                    if (buffer.Length > 0 && SequenceMarshal.TryGetReadOnlyMemory(buffer, out var memory))
-                    {
-                        int bytesConsumed = 0;
-                        int bytesWritten = 0;
-                        if (isClient)
-                            brotliEncoder.Compress(memory.Span, tempBuffer, out bytesConsumed, out bytesWritten, isFinalBlock: false);
-                        else
-                            brotliDecoder.Decompress(memory.Span, tempBuffer, out bytesConsumed, out bytesWritten);
-                        await socket.SendAsync(tb.Slice(0, bytesWritten), SocketFlags.None);
-                        position = buffer.End;
-                    }
-
-                    if (position != null)
-                    {
-                        // Skip the line + the \n character (basically position)
-                        buffer = buffer.Slice(buffer.GetPosition(0, position.Value));
-                        reader.AdvanceTo(buffer.Start, buffer.End);
-                    }
-                }
-                //while (position != null);
-
-                // Tell the PipeReader how much of the buffer we have consumed
-
-                // Stop reading if there's no more data coming
-                if (result.IsCompleted)
-                {
-                    // We need to send final block.
-                    int bytesConsumed = 0;
-                    int bytesWritten = 0;
-                    if (isClient)
-                        brotliEncoder.Compress(tb.Slice(0).Span, tempBuffer, out bytesConsumed, out bytesWritten, isFinalBlock: true);
-                    else
-                        brotliDecoder.Decompress(tb.Slice(0).Span, tempBuffer, out bytesConsumed, out bytesWritten);
-                    await socket.SendAsync(tb.Slice(0, bytesWritten), SocketFlags.None);
-                    break;
-                }
-            }
-
-            // Mark the PipeReader as complete
-            reader.Complete();
-            Listener.Debug($"Socket writer for socket {socketAddr} done.");
-        }
     }
 }
