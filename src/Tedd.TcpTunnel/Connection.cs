@@ -71,17 +71,16 @@ namespace Tedd.TcpTunnel
             using var ns1 = new NetworkStream(socket1, false);
             using var ns2 = new NetworkStream(socket2, false);
             //using var ms2 = new MemoryStream();
-            using var ms2 = new BufferedStream();
+            using var ms2 = new MemoryStream();
             //using var cs1 = new GZipStream(ns1, CompressionLevel.Optimal, true);
             //using var cs2 = new GZipStream(ms2, CompressionMode.Decompress, true);
-            using var cs1 = LZ4Stream.Encode(ns1,null,true);
+            using var cs1 = LZ4Stream.Encode(ns1, null, true);
             using var cs2 = LZ4Stream.Decode(ms2, null, true);
 
             var t1 = ns2.CopyToAsyncWithFlush(cs1, 0, cancellationTokenSource.Token); //   COMPRESS: Copy from socket2->ns2 to socket1 (write to cs1->ns1->socket1)
             var t2 = ns1.CopyToAsyncWithFlush(ms2, 0, cancellationTokenSource.Token); // DECOMPRESS: Copy from socket1->ns1 to ms2 (write to ms2->cs2)
             var t3 = cs2.CopyToAsyncWithFlush(ns2, 0, cancellationTokenSource.Token); // DECOMPRESS: Copy from cs2 to socket2 (write to ns2->socket2)
-            
-            ns1.WriteAsync()
+
             // No compression
             //var t1 = ns2.CopyToAsyncWithFlush(ns1, 0, cancellationTokenSource.Token);
             //var t2 = ns1.CopyToAsyncWithFlush(ns2, 0, cancellationTokenSource.Token);
