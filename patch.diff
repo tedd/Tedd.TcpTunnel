@@ -1,0 +1,12 @@
+<<<<<<< SEARCH
+            //var pipe = new Pipe();
+            using var ms2 = pipe.Writer.AsStream();
+            using var ms2Reader = pipe.Reader.AsStream();
+            var pipe = new Pipe();
+            using var ms2 = pipe.Writer.AsStream();
+            using var ms2Reader = pipe.Reader.AsStream();
+=======
+            var pipe = new Pipe();
+            using var ms2 = pipe.Writer.AsStream();
+            using var ms2Reader = pipe.Reader.AsStream();
+>>>>>>> REPLACE
