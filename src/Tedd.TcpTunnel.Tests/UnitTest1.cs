@@ -43,15 +43,16 @@ namespace Tedd.TcpTunnel.Tests
 
             // Generate some random data for test
             var state = new SharedState();
-            state.BinData1 = new ();
-            state.BinData2 = new ();
+            state.BinData1 = new();
+            state.BinData2 = new();
             var rnd = new Random();
-            for (var i = 1; i < 1_00; i ++) {
-                var bytes1 = new byte[i*1000];
+            for (var i = 1; i < 1_00; i++)
+            {
+                var bytes1 = new byte[i * 1000];
                 rnd.NextBytes(bytes1);
                 state.BinData1.Add(bytes1);
 
-                var bytes2 = new byte[i*1000];
+                var bytes2 = new byte[i * 1000];
                 rnd.NextBytes(bytes2);
                 state.BinData2.Add(bytes2);
             }
@@ -61,7 +62,11 @@ namespace Tedd.TcpTunnel.Tests
             Debug.WriteLine("Setting up testclient to 2000");
             var task4 = SendClient(state, 2000);
 
-            Task.WaitAll(new[] { task1, task2, task3, task4 }, 10_000);
+var completed = Task.WaitAll(new[] { task3, task4 }, 10_000);
+cancellationTokenSource1.Cancel();
+cancellationTokenSource2.Cancel();
+Assert.True(completed, "Timed out waiting for test client/server tasks.");
+Assert.False(task1.IsFaulted || task2.IsFaulted, $"Listener task faulted: {task1.Exception}{task2.Exception}");
         }
 
         private async Task SendClient(SharedState state, int port)
@@ -82,8 +87,8 @@ namespace Tedd.TcpTunnel.Tests
 
                 var pos = 0;
                 var buffer = new byte[rd.Length];
-                while (pos < sd.Length) 
-                    pos +=  ns.Read(buffer, pos, buffer.Length - pos);
+                while (pos < sd.Length)
+                    pos += ns.Read(buffer, pos, buffer.Length - pos);
                 Assert.Equal(rd, buffer);
             }
             ns.Close();
