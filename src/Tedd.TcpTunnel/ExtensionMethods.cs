@@ -15,7 +15,7 @@ namespace Tedd.TcpTunnel
         /// Copies the contents of the source stream to the destination stream and flushes after each read.
         /// Complexity:
         /// Time: O(N) where N is the number of bytes in the stream.
-        /// Space: O(1) auxiliary space (uses an ArrayPool buffer instead of allocating a new array).
+        /// Space: O(bufferSize) for the working buffer (rented via ArrayPool to avoid per-call allocations).
         /// </summary>
         public static async Task CopyToAsyncWithFlush(this Stream source, Stream destination, int bufferSize, CancellationToken cancellationToken)
         {
