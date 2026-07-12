@@ -1,0 +1,5 @@
+## 2024-07-12 - Initial Component Isolation: ExtensionMethods.cs
+
+**Observation:** The repository exhibits a lack of deterministic test coverage, particularly concerning lower-level utility components. The `ExtensionMethods.CopyToAsyncWithFlush` method contains critical byte manipulation, buffer pooling (`ArrayPool<byte>`), and stream manipulation logic with untested conditional branches and exception vectors. The existing tests (`TunnelTests`) are brittle, end-to-end network tests that are currently timing out.
+
+**Strategic Action:** Isolate `ExtensionMethods` for targeted, parameterized unit testing. I will leverage `MemoryStream` and explicitly defined `byte[]` payloads to verify stream copying behavior deterministically without network IO. Parameterization will focus on boundary buffer sizes and cancellation tokens to guarantee absolute code coverage.
