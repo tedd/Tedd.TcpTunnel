@@ -15,7 +15,7 @@ namespace Tedd.TcpTunnel.Tests
     public class TunnelTests
     {
         [Fact]
-        public void TunnelTest1()
+        public async Task TunnelTest1()
         {
             Debug.WriteLine("Setting up client 2000 -> 2001");
             var listener1 = new Listener(new TcpTunnelSettings()
@@ -62,11 +62,13 @@ namespace Tedd.TcpTunnel.Tests
             Debug.WriteLine("Setting up testclient to 2000");
             var task4 = SendClient(state, 2000);
 
-var completed = Task.WaitAll(new[] { task3, task4 }, 10_000);
-cancellationTokenSource1.Cancel();
-cancellationTokenSource2.Cancel();
-Assert.True(completed, "Timed out waiting for test client/server tasks.");
-Assert.False(task1.IsFaulted || task2.IsFaulted, $"Listener task faulted: {task1.Exception}{task2.Exception}");
+            var tasksToWait = Task.WhenAll(task3, task4);
+            var completedTask = await Task.WhenAny(tasksToWait, Task.Delay(10_000));
+            var completed = completedTask == tasksToWait;
+            cancellationTokenSource1.Cancel();
+            cancellationTokenSource2.Cancel();
+            Assert.True(completed, "Timed out waiting for test client/server tasks.");
+            Assert.False(task1.IsFaulted || task2.IsFaulted, $"Listener task faulted: {task1.Exception}{task2.Exception}");
         }
 
         private async Task SendClient(SharedState state, int port)
