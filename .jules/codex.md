@@ -1,0 +1,3 @@
+## 2026-08-13 - Architectural Delineation and Documentation Drift Mitigation
+**Observation:** The previous documentation lacked explicit articulation of internal framework mechanics, particularly the LZ4 compression layer and the `ArrayPool<byte>` memory optimization logic. Furthermore, the `README.md` lacked a modern, validated .NET API instantiation example.
+**Strategic Action:** Synchronized `README.md` to reflect contemporary source code implementation by explicitly separating established capabilities from future hypotheses and embedding a syntactically verified .NET code example to mitigate pedagogical friction.
