@@ -182,7 +182,8 @@ public sealed class EncryptionProtocolTests
             Encryption = EncryptionTests.Client(EncryptionAlgorithm.AesGcm, revoked, "revoked") }, rig.Token);
         var stream = existing.GetStream();
         await stop.CancelAsync(); await running;
-        Assert.Equal(0, await stream.ReadAsync(new byte[1], rig.Token));
+        try { Assert.Equal(0, await stream.ReadAsync(new byte[1], rig.Token)); }
+        catch (IOException) { /* Linux may report an immediate reset when the listener closes during startup. */ }
         encryption.Keys.Remove("revoked");
         var restarted = await rig.AddAsync(options);
         using var rejected = new TcpClient(); await rejected.ConnectAsync(restarted, rig.Token);
