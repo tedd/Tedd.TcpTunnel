@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Collections;
 using System.Text.Json;
 using Tedd.TcpTunnel.Console;
 
@@ -16,13 +17,44 @@ public sealed class ConfigurationTests
             foreach (var property in value.GetType().GetProperties())
             {
                 var item = property.GetValue(value); var key = prefix + property.Name;
+                if (item is IEnumerable and not string) continue;
                 if (item is not null && property.PropertyType.IsClass && property.PropertyType != typeof(string)) { Add(item, key + ":"); continue; }
                 args.Add("--" + key); args.Add(item?.ToString() ?? "null");
             }
         }
-        Add(options.Forwards[0], ""); Add(options.Update, "update:");
+        Add(options.Forwards[0], ""); Add(options.Update, "update:"); Add(options.Logging, "logging:");
         var parsed = Configuration.Parse(args.ToArray());
         Assert.Equal(JsonSerializer.Serialize(options, Configuration.Json), JsonSerializer.Serialize(parsed.Options, Configuration.Json));
+    }
+
+    [Fact]
+    public void AclAndLoggingOptionsCanBeSetFromJsonAndCli()
+    {
+        using var directory = new TempDirectory(); var file = Path.Combine(directory.Path, "config.json");
+        File.WriteAllText(file, """{"Forwards":[{"AccessControl":{"Allow":["192.0.2.0/24"]}}]}""");
+        var command = Configuration.Parse(["--config", file, "--access-control:allow", "2001:db8::/32",
+            "--access-control:deny", "192.0.2.4", "--debug", "--log-file", "events.jsonl"]);
+        Assert.Equal(["192.0.2.0/24", "2001:db8::/32"], command.Options.Forwards[0].AccessControl.Allow);
+        Assert.Equal(["192.0.2.4"], command.Options.Forwards[0].AccessControl.Deny);
+        Assert.Equal(TunnelLogLevel.Debug, command.Options.Logging.Level);
+        Assert.Equal("events.jsonl", command.Options.Logging.File);
+    }
+
+    [Fact]
+    public void ServiceCommandsRequirePersistentConfigurationAndSafeNames()
+    {
+        Assert.Equal(ServiceOperation.Uninstall, Configuration.Parse(["--uninstall-service"]).Service);
+        Assert.Throws<ArgumentException>(() => Configuration.Parse(["--service"]));
+        Assert.Throws<ArgumentException>(() => Configuration.Parse(["--install-service"]));
+        Assert.Throws<ArgumentException>(() => Configuration.Parse(["--uninstall-service", "--service-name", "../bad"]));
+        Assert.Throws<ArgumentException>(() => Configuration.Parse(["--service", "--uninstall-service"]));
+        using var directory = new TempDirectory(); var file = Path.Combine(directory.Path, "config.json");
+        File.WriteAllText(file, """{"Forwards":[{}]}""");
+        var command = Configuration.Parse(["--install-service", "--service-name", "sql-tunnel", "--config", file]);
+        Assert.Equal(ServiceOperation.Install, command.Service);
+        Assert.Equal("sql-tunnel", command.ServiceName);
+        Assert.Equal(Path.GetFullPath(file), command.ConfigPath);
+        Assert.Throws<ArgumentException>(() => Configuration.Parse(["--install-service", "--config", file, "--debug"]));
     }
 
     [Fact]
@@ -64,7 +96,7 @@ public sealed class ConfigurationTests
 
     [Theory]
     [InlineData("--help")] [InlineData("-h")] [InlineData("--version")] [InlineData("--check-update")]
-    [InlineData("--update-now")]
+    [InlineData("--update-now")] [InlineData("--uninstall-service")]
     public void InformationalCommandsDoNotRequireForwards(string option) => Assert.NotNull(Configuration.Parse([option]));
 
     [Fact]
@@ -109,7 +141,9 @@ public sealed class ConfigurationTests
         Assert.Throws<ArgumentException>(() => new ForwardOptions { Mode = TunnelMode.Socks5, ListenAddress = "0.0.0.0" }.Validate());
         new ForwardOptions { Mode = TunnelMode.Socks5, ListenAddress = "0.0.0.0", AllowRemoteSocks = true }.Validate();
         Assert.Throws<ArgumentException>(() => new ForwardOptions { Retry = null! }.Validate());
+        Assert.Throws<ArgumentException>(() => new ForwardOptions { AccessControl = null! }.Validate());
         Assert.Throws<ArgumentException>(() => new TunnelOptions { Forwards = [new()], Update = null! }.Validate());
+        Assert.Throws<ArgumentException>(() => new TunnelOptions { Forwards = [new()], Logging = null! }.Validate());
         foreach (var type in new[] { typeof(RetryOptions), typeof(SocketOptions), typeof(CaptureOptions), typeof(UpdateOptions) })
         foreach (var property in type.GetProperties().Where(p => p.PropertyType == typeof(int)))
         {
@@ -124,6 +158,10 @@ public sealed class ConfigurationTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new CaptureOptions { MaxFileBytes = 1 }.Validate());
         Assert.Throws<ArgumentException>(() => new UpdateOptions { Repository = "https://example.org" }.Validate());
         Assert.Throws<ArgumentException>(() => new UpdateOptions { InstallKind = "unknown" }.Validate());
+        Assert.Throws<ArgumentException>(() => new LoggingOptions { Level = (TunnelLogLevel)99 }.Validate());
+        Assert.Throws<ArgumentException>(() => new LoggingOptions { File = " " }.Validate());
+        Assert.Throws<ArgumentException>(() => new AccessControlOptions { Allow = ["not-an-ip"] }.Validate());
+        Assert.Throws<ArgumentException>(() => new AccessControlOptions { Allow = ["192.0.2.1/33"] }.Validate());
     }
 
     [Fact]

@@ -52,6 +52,40 @@ public sealed class StreamAndSocketTests
         var running = listener.Start(stop.Token); Assert.Equal(AddressFamily.InterNetworkV6, (await listener.Ready).AddressFamily);
         await stop.CancelAsync(); await running;
     }
+    [Fact]
+    public void AclSupportsIpv4Ipv6ExactAddressesAndSubnets()
+    {
+        var acl = IpAccessControl.Create(new()
+        {
+            Allow = ["192.0.2.0/24", "2001:db8::/32", "203.0.113.8"],
+            Deny = ["192.0.2.128/25", "2001:db8:ffff::/48", "203.0.113.8"]
+        });
+        Assert.True(acl.IsAllowed(IPAddress.Parse("192.0.2.1")));
+        Assert.False(acl.IsAllowed(IPAddress.Parse("192.0.2.200")));
+        Assert.True(acl.IsAllowed(IPAddress.Parse("2001:db8:1::1")));
+        Assert.False(acl.IsAllowed(IPAddress.Parse("2001:db9::1")));
+        Assert.False(acl.IsAllowed(IPAddress.Parse("203.0.113.8")));
+        Assert.True(acl.IsAllowed(IPAddress.Parse("::ffff:192.0.2.1")));
+    }
+
+    [Fact]
+    public async Task DualStackListenerAcceptsIpv4AndNormalizesItForAcl()
+    {
+        await using var rig = new TunnelRig();
+        var endpoint = await rig.AddAsync(new()
+        {
+            Name = "dual",
+            ListenAddress = "::",
+            ListenPort = 0,
+            RemotePort = rig.EchoPort,
+            AccessControl = new() { Allow = ["127.0.0.0/8"] }
+        });
+        using var client = new TcpClient(AddressFamily.InterNetwork);
+        await client.ConnectAsync(IPAddress.Loopback, endpoint.Port, rig.Token);
+        await client.GetStream().WriteAsync(new byte[] { 19 }, rig.Token);
+        var output = new byte[1]; await client.GetStream().ReadExactlyAsync(output, rig.Token);
+        Assert.Equal(19, output[0]);
+    }
     private sealed class FlushStream : MemoryStream
     {
         public int FlushCount { get; private set; }

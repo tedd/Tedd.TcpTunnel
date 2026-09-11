@@ -51,6 +51,19 @@ public sealed class SocksAndCaptureTests
         await Assert.ThrowsAsync<InvalidDataException>(() => task);
     }
 
+    [Fact]
+    public async Task SocksRejectsNonAsciiHostnames()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
+        using var client = new TcpClient(); await client.ConnectAsync((IPEndPoint)listener.LocalEndpoint, TestContext.Current.CancellationToken);
+        using var accepted = await listener.AcceptSocketAsync(TestContext.Current.CancellationToken);
+        var task = Socks5.ReadTargetAsync(accepted, TestContext.Current.CancellationToken);
+        await client.GetStream().WriteAsync(new byte[] { 5, 1, 0 }, TestContext.Current.CancellationToken);
+        await client.GetStream().ReadExactlyAsync(new byte[2], TestContext.Current.CancellationToken);
+        await client.GetStream().WriteAsync(new byte[] { 5, 1, 0, 3, 1, 0xff, 0, 80 }, TestContext.Current.CancellationToken);
+        await Assert.ThrowsAsync<InvalidDataException>(() => task);
+    }
+
     [Theory]
     [InlineData(false, 1)] [InlineData(false, 3)] [InlineData(true, 2)]
     public void PcapIsStandardBoundedAndHasValidChecksums(bool ipv6, int retention)

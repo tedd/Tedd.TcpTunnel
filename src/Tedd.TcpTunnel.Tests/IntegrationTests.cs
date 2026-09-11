@@ -187,6 +187,47 @@ public sealed class IntegrationTests
         Assert.True(listener.Ready.IsCompleted, "Readiness must settle when capture initialization fails.");
         await Assert.ThrowsAnyAsync<IOException>(() => listener.Ready);
     }
+
+    [Fact]
+    public async Task AclDenialIsLoggedBeforeRemoteConnection()
+    {
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var denied = new TaskCompletionSource<TunnelEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var listener = new Listener(new()
+        {
+            ListenPort = 0,
+            RemotePort = 1,
+            AccessControl = new() { Deny = ["127.0.0.0/8"] }
+        }, entry => { if (entry.Event == "connection-denied") denied.TrySetResult(entry); });
+        var running = listener.Start(stop.Token);
+        var endpoint = await listener.Ready.WaitAsync(stop.Token);
+        using var client = new TcpClient(); await client.ConnectAsync(endpoint, stop.Token);
+        Assert.Equal(0, await client.GetStream().ReadAsync(new byte[1], stop.Token));
+        var entry = await denied.Task.WaitAsync(stop.Token);
+        Assert.Equal("warning", entry.Level); Assert.NotNull(entry.ConnectionId); Assert.Contains("127.0.0.1", entry.Source);
+        await stop.CancelAsync(); await running;
+    }
+
+    [Fact]
+    public async Task SuccessfulConnectionLifecycleIsLoggedWithCorrelation()
+    {
+        await using var rig = new TunnelRig();
+        var endpoint = await rig.AddAsync(new() { Name = "logs", ListenPort = 0, RemotePort = rig.EchoPort });
+        using (var client = new TcpClient())
+        {
+            await client.ConnectAsync(endpoint, rig.Token);
+            var stream = client.GetStream();
+            await stream.WriteAsync(new byte[] { 7 }, rig.Token);
+            var output = new byte[1]; await stream.ReadExactlyAsync(output, rig.Token);
+            client.Client.Shutdown(SocketShutdown.Send);
+            Assert.Equal(0, await stream.ReadAsync(new byte[1], rig.Token));
+        }
+        while (!rig.Events.Any(entry => entry.Event == "connection-closed")) await Task.Delay(10, rig.Token);
+        var lifecycle = rig.Events.Where(entry => entry.Forward == "logs" && entry.ConnectionId is not null).ToArray();
+        var id = Assert.Single(lifecycle, entry => entry.Event == "connection-attempt").ConnectionId;
+        Assert.Contains(lifecycle, entry => entry.Event == "connection-established" && entry.ConnectionId == id && entry.Destination is not null);
+        Assert.Contains(lifecycle, entry => entry.Event == "connection-closed" && entry.ConnectionId == id && entry.DurationMilliseconds >= 0);
+    }
 }
 
 internal sealed class TunnelRig : IAsyncDisposable
@@ -197,13 +238,14 @@ internal sealed class TunnelRig : IAsyncDisposable
     private readonly List<Task> _echoClients = [];
     private readonly Task _echoLoop;
     public ConcurrentQueue<TunnelEvent> Errors { get; } = new();
+    public ConcurrentQueue<TunnelEvent> Events { get; } = new();
     public TaskCompletionSource<TunnelEvent> FirstError { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public CancellationToken Token => _stop.Token;
     public int EchoPort => ((IPEndPoint)_echo.LocalEndpoint).Port;
     public TunnelRig() { _echo.Start(); _echoLoop = EchoLoopAsync(); }
     public async Task<IPEndPoint> AddAsync(ForwardOptions options)
     {
-        var listener = new Listener(options, entry => { if (entry.Level == "error") { Errors.Enqueue(entry); FirstError.TrySetResult(entry); } });
+        var listener = new Listener(options, entry => { Events.Enqueue(entry); if (entry.Level == "error") { Errors.Enqueue(entry); FirstError.TrySetResult(entry); } });
         _listeners.Add(listener.Start(Token));
         return await listener.Ready.WaitAsync(Token);
     }

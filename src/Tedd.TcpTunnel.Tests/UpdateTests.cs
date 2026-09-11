@@ -20,7 +20,7 @@ public sealed class UpdateTests
         using (var archive = new ZipArchive(package, ZipArchiveMode.Create, true))
         { using var entry = archive.CreateEntry(executable).Open(); entry.Write("updated"u8); }
         var bytes = package.ToArray(); var available = Available(bytes, out var sums);
-        var release = new GitHubRelease("v2.1.0", "", false, false, available.Assets);
+        var release = new GitHubRelease("v2.2.0", "", false, false, available.Assets);
         var launched = false;
         var runtime = new UpdateRuntime(directory.Path, target, true, directory.Path, _ =>
         { launched = true; if (launchFails) throw new System.ComponentModel.Win32Exception("Launch denied."); });
@@ -40,7 +40,7 @@ public sealed class UpdateTests
     [Fact]
     public async Task CliUpdateChecksAndDeclinesAreNonMutating()
     {
-        var version = "2.1.0";
+        var version = "2.2.0";
         var release = new GitHubRelease("v" + version, "", false, false,
             [Asset(ReleaseClient.AssetName(version, ReleaseClient.RuntimeId(), "zip"), [1]), Asset("SHA256SUMS", [1])]);
         var services = new ApplicationServices(() => Http(_ => JsonSerializer.SerializeToUtf8Bytes(new[] { release })), () => false);
@@ -114,7 +114,7 @@ public sealed class UpdateTests
     public async Task BackgroundUpdateChecksCancelCleanlyOnSuccessAndFailure(bool failure)
     {
         using var stop = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
-        var version = "2.1.0";
+        var version = "2.2.0";
         var release = new GitHubRelease("v" + version, "", false, false, [Asset(ReleaseClient.AssetName(version, ReleaseClient.RuntimeId(), "zip"), [1]), Asset("SHA256SUMS", [1])]);
         using var http = new HttpClient(new StubHandler(_ => new(failure ? HttpStatusCode.Forbidden : HttpStatusCode.OK)
         { Content = new ByteArrayContent(JsonSerializer.SerializeToUtf8Bytes(new[] { release })) }));
@@ -138,9 +138,9 @@ public sealed class UpdateTests
     private static ReleaseAsset Asset(string name, byte[] data) => new(name, $"https://github.com/tedd/Tedd.TcpTunnel/releases/download/v2.1.0/{name}", data.Length);
     private static AvailableRelease Available(byte[] data, out byte[] sums)
     {
-        var name = ReleaseClient.AssetName("2.1.0", ReleaseClient.RuntimeId(), "zip");
+        var name = ReleaseClient.AssetName("2.2.0", ReleaseClient.RuntimeId(), "zip");
         sums = Encoding.UTF8.GetBytes($"{Convert.ToHexString(SHA256.HashData(data))}  {name}\n");
-        return new("2.1.0", "https://github.com/tedd/Tedd.TcpTunnel/releases/tag/v2.1.0", [Asset(name, data), Asset("SHA256SUMS", sums)]);
+        return new("2.2.0", "https://github.com/tedd/Tedd.TcpTunnel/releases/tag/v2.2.0", [Asset(name, data), Asset("SHA256SUMS", sums)]);
     }
 
     [Theory]

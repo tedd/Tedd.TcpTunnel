@@ -6,7 +6,16 @@ using System.Text;
 
 namespace Tedd.TcpTunnel;
 
-public sealed record TunnelEvent(string Forward, string Level, string Message, Exception? Exception = null);
+public sealed record TunnelEvent(
+    string Forward,
+    string Level,
+    string Message,
+    Exception? Exception = null,
+    string Event = "message",
+    long? ConnectionId = null,
+    string? Source = null,
+    string? Destination = null,
+    long? DurationMilliseconds = null);
 
 internal static partial class SocketTuning
 {

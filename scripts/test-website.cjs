@@ -6,6 +6,11 @@ const vm = require('node:vm');
 const html = fs.readFileSync(path.join(__dirname, '../website/index.html'), 'utf8');
 const script = fs.readFileSync(path.join(__dirname, '../website/app.js'), 'utf8');
 
+test('website describes dual-stack ACLs, service operation, logging, and SQL Server origin', () => {
+  for (const text of ['IPv4', 'IPv6', 'CIDR', 'Windows services', 'systemd', 'connection attempts', 'Microsoft SQL Server (MSSQL)', 'compress and encrypt'])
+    assert(html.includes(text), `Missing website capability: ${text}`);
+});
+
 function builder() {
   const elements = new Map();
   for (const match of html.matchAll(/<([\w-]+)\b([^>]*\bid="([^"]+)"[^>]*)>/g)) {

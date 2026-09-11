@@ -6,11 +6,13 @@ namespace Tedd.TcpTunnel;
 public enum TunnelMode { Raw, Client, Server, Socks5 }
 public enum Codec { None, Brotli, Deflate, GZip, ZLib, Lz4, Zstandard }
 public enum ExecutionMode { Async, Dedicated }
+public enum TunnelLogLevel { Error, Warning, Information, Debug }
 
 public sealed class TunnelOptions
 {
     public List<ForwardOptions> Forwards { get; set; } = [];
     public UpdateOptions Update { get; set; } = new();
+    public LoggingOptions Logging { get; set; } = new();
 
     public void Validate()
     {
@@ -24,6 +26,8 @@ public sealed class TunnelOptions
         }
         if (Update is null) throw new ArgumentException("Update options cannot be null.");
         Update.Validate();
+        if (Logging is null) throw new ArgumentException("Logging options cannot be null.");
+        Logging.Validate();
     }
 }
 
@@ -54,6 +58,7 @@ public sealed class ForwardOptions
     public RetryOptions Retry { get; set; } = new();
     public SocketOptions Socket { get; set; } = new();
     public CaptureOptions Capture { get; set; } = new();
+    public AccessControlOptions AccessControl { get; set; } = new();
 
     public void Validate()
     {
@@ -80,8 +85,8 @@ public sealed class ForwardOptions
             throw new ArgumentException("Compression requires a client/server tunnel pair.");
         if (Mode == TunnelMode.Socks5 && !AllowRemoteSocks && !IPAddress.IsLoopback(address))
             throw new ArgumentException("A non-loopback SOCKS listener requires AllowRemoteSocks=true.");
-        if (Retry is null || Socket is null || Capture is null || Encryption is null) throw new ArgumentException("Nested forward options cannot be null.");
-        Retry.Validate(); Socket.Validate(); Capture.Validate(); Encryption.Validate(Mode);
+        if (Retry is null || Socket is null || Capture is null || Encryption is null || AccessControl is null) throw new ArgumentException("Nested forward options cannot be null.");
+        Retry.Validate(); Socket.Validate(); Capture.Validate(); Encryption.Validate(Mode); AccessControl.Validate();
     }
 
     internal static void Range(int value, int min, int max, string name)
@@ -117,7 +122,7 @@ public sealed class SocketOptions
     public int KeepAliveRetryCount { get; set; } = 5;
     public int SendBufferSize { get; set; }
     public int ReceiveBufferSize { get; set; }
-    public bool DualMode { get; set; }
+    public bool DualMode { get; set; } = true;
     public bool ReuseAddress { get; set; }
     public bool LinuxQuickAck { get; set; }
     public int LinuxUserTimeoutMilliseconds { get; set; }
@@ -133,6 +138,29 @@ public sealed class SocketOptions
         ForwardOptions.Range(LinuxUserTimeoutMilliseconds, 0, int.MaxValue, nameof(LinuxUserTimeoutMilliseconds));
         if (LinuxCongestionControl is not null && (LinuxCongestionControl.Length is < 1 or > 32 || !LinuxCongestionControl.All(char.IsAsciiLetterOrDigit)))
             throw new ArgumentException("Invalid Linux congestion-control name.");
+    }
+}
+
+public sealed class AccessControlOptions
+{
+    public List<string> Allow { get; set; } = [];
+    public List<string> Deny { get; set; } = [];
+    internal void Validate()
+    {
+        if (Allow is null || Deny is null) throw new ArgumentException("ACL allow and deny lists cannot be null.");
+        _ = IpAccessControl.Create(this);
+    }
+}
+
+public sealed class LoggingOptions
+{
+    public TunnelLogLevel Level { get; set; } = TunnelLogLevel.Information;
+    public bool Console { get; set; } = true;
+    public string? File { get; set; }
+    internal void Validate()
+    {
+        if (!Enum.IsDefined(Level)) throw new ArgumentException("Unknown logging level.");
+        if (File is not null && string.IsNullOrWhiteSpace(File)) throw new ArgumentException("Logging file cannot be empty.");
     }
 }
 

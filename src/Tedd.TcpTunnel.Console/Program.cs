@@ -11,7 +11,21 @@ internal static class Program
     internal static string Version => Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
         .InformationalVersion.Split('+')[0];
 
-    public static Task<int> Main(string[] args) => RunAsync(args);
+    public static Task<int> Main(string[] args)
+    {
+        if (!OperatingSystem.IsWindows() || !args.Any(argument => string.Equals(argument, "--service", StringComparison.Ordinal)))
+            return RunAsync(args);
+        try
+        {
+            var command = Configuration.Parse(args);
+            return Task.FromResult(WindowsService.Run(command.ServiceName, token => RunAsync(args, token: token)));
+        }
+        catch (Exception ex) when (IsExpected(ex))
+        {
+            System.Console.Error.WriteLine($"Error: {ex.Message}");
+            return Task.FromResult(1);
+        }
+    }
 
     internal static async Task<int> RunAsync(string[] args, ApplicationServices? services = null, CancellationToken token = default)
     {
@@ -28,6 +42,8 @@ internal static class Program
             if (command.Version) { System.Console.WriteLine(Version); return 0; }
             if (command.WriteConfig is { } file) { await File.WriteAllTextAsync(file, JsonSerializer.Serialize(command.Options, Configuration.Json), stop.Token); return 0; }
             if (command.Check) { System.Console.WriteLine("Configuration is valid."); return 0; }
+            if (command.Service == ServiceOperation.Install) { await ServiceManagement.InstallAsync(command, stop.Token).ConfigureAwait(false); return 0; }
+            if (command.Service == ServiceOperation.Uninstall) { await ServiceManagement.UninstallAsync(command.ServiceName, stop.Token).ConfigureAwait(false); return 0; }
             using var http = services?.CreateHttpClient() ?? new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
             var updater = new ReleaseClient(http, command.Options.Update);
             if (command.CheckUpdate || command.UpdateNow)
@@ -43,21 +59,25 @@ internal static class Program
                 await UpdateInstaller.PrepareAsync(updater, release, command.Options.Update, stop.Token, services?.UpdateRuntime).ConfigureAwait(false);
                 return 0;
             }
-            var monitor = MonitorUpdatesAsync(updater, command.Options.Update, stop.Token);
+            using var logger = new EventLogger(command.Options.Logging, command.Service == ServiceOperation.Run, command.ConfigPath);
+            var monitor = MonitorUpdatesAsync(updater, command.Options.Update, stop.Token, logger.Write);
             try
             {
-                await new TunnelHost(command.Options, entry => System.Console.Error.WriteLine(JsonSerializer.Serialize(new
-                { timestamp = DateTimeOffset.UtcNow, forward = entry.Forward, level = entry.Level, message = entry.Message, error = entry.Exception?.Message })))
+                await new TunnelHost(command.Options, logger.Write)
                     .RunAsync(stop.Token).ConfigureAwait(false);
             }
             finally { await stop.CancelAsync().ConfigureAwait(false); await monitor.ConfigureAwait(false); }
             return 0;
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested) { return 0; }
-        catch (Exception ex) when (ex is ArgumentException or JsonException or IOException or InvalidDataException or System.Net.Sockets.SocketException or HttpRequestException or UnauthorizedAccessException or InvalidOperationException or OperationCanceledException or System.ComponentModel.Win32Exception or NotSupportedException)
+        catch (Exception ex) when (IsExpected(ex))
         { System.Console.Error.WriteLine($"Error: {ex.Message}"); return 1; }
         finally { System.Console.CancelKeyPress -= cancelHandler; }
     }
+
+    private static bool IsExpected(Exception ex) => ex is ArgumentException or JsonException or IOException or InvalidDataException or
+        System.Net.Sockets.SocketException or HttpRequestException or UnauthorizedAccessException or InvalidOperationException or
+        OperationCanceledException or System.ComponentModel.Win32Exception or NotSupportedException;
 
     internal static bool ConfirmUpdate(TextReader? input = null, TextWriter? output = null)
     {
@@ -66,7 +86,8 @@ internal static class Program
         return string.Equals((input ?? System.Console.In).ReadLine(), "y", StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static async Task MonitorUpdatesAsync(ReleaseClient updater, UpdateOptions options, CancellationToken token)
+    internal static async Task MonitorUpdatesAsync(ReleaseClient updater, UpdateOptions options, CancellationToken token,
+        Action<TunnelEvent>? log = null)
     {
         if (!options.CheckOnStartup) return;
         string? offered = null;
@@ -80,14 +101,20 @@ internal static class Program
                     if (release is not null && offered != release.Version)
                     {
                         offered = release.Version;
-                        System.Console.Error.WriteLine($"Update {release.Version} available. Run tcptunnel --update-now to review and install: {release.Page}");
+                        Write("info", "update-available", $"Update {release.Version} available. Run tcptunnel --update-now to review and install: {release.Page}");
                     }
                 }
                 catch (Exception ex) when (!token.IsCancellationRequested && ex is HttpRequestException or IOException or InvalidDataException or JsonException or OperationCanceledException)
-                { System.Console.Error.WriteLine($"Update check unavailable: {ex.Message}"); }
+                { Write("warning", "update-check-failed", $"Update check unavailable: {ex.Message}", ex); }
                 await Task.Delay(TimeSpan.FromHours(options.CheckIntervalHours), token).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+
+        void Write(string level, string eventName, string message, Exception? exception = null)
+        {
+            if (log is null) System.Console.Error.WriteLine(message);
+            else log(new("system", level, message, exception, eventName));
+        }
     }
 }

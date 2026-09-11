@@ -12,7 +12,11 @@
       "BatchMilliseconds": 0,
       "Execution": "Async",
       "Retry": { "Attempts": 3 },
-      "Socket": { "NoDelay": true, "KeepAlive": true }
+      "Socket": { "NoDelay": true, "KeepAlive": true, "DualMode": true },
+      "AccessControl": {
+        "Allow": ["127.0.0.0/8", "::1"],
+        "Deny": []
+      }
     }
   ],
   "Update": {
@@ -21,5 +25,10 @@
     "Repository": "tedd/Tedd.TcpTunnel",
     "IncludePrerelease": false,
     "InstallKind": "auto"
+  },
+  "Logging": {
+    "Level": "Information",
+    "Console": true,
+    "File": null
   }
 }

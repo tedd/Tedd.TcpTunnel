@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="A TCP tunnel for Windows and Linux. Run a client and server at opposite ends of a network link to forward TCP connections with optional compression and authenticated shared-key encryption.">
+  <meta name="description" content="An IPv4/IPv6 TCP tunnel for Windows and Linux with compression, authenticated encryption, source-network ACLs, structured logging, and native service operation.">
   <meta name="theme-color" content="#f7f9fc">
   <title>Tedd.TcpTunnel — TCP tunnel for Windows and Linux</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -22,7 +22,7 @@
   <section class="wrap hero">
     <div class="hero-copy"><div class="eyebrow"><span class="label">OPEN SOURCE</span> WINDOWS &amp; LINUX</div>
       <h1>A TCP tunnel.<br><span>At both ends.</span></h1>
-      <p class="lede">Tedd.TcpTunnel forwards TCP connections through a client and server running at opposite ends of a network link. It can compress and encrypt traffic between them and forwards the original byte stream to your destination service.</p>
+      <p class="lede">Tedd.TcpTunnel forwards IPv4 and IPv6 TCP connections through a client and server running at opposite ends of a network link. It can compress and encrypt traffic between them and forwards the original byte stream to your destination service. I initially developed it because Microsoft SQL Server (MSSQL) does not provide wire compression, so the tunnel lets me both compress and encrypt those connections.</p>
       <div class="hero-actions"><a class="button" href="#download">Get TcpTunnel <span aria-hidden="true">↓</span></a><a class="text-link" href="https://github.com/tedd/Tedd.TcpTunnel/tree/deploy#readme">Read the docs <span aria-hidden="true">↗</span></a></div>
       <p class="platforms">Windows &amp; Linux <span> / </span> x64 &amp; ARM64 <span> / </span> LGPL-2.1 licensed</p>
     </div>
@@ -38,14 +38,14 @@
       <div class="board-footer"><span>Any TCP application</span><span>Configurable in both directions</span></div>
     </div>
   </section>
-  <section class="capability-strip" aria-label="Capabilities"><div class="wrap"><span>Configurable compression</span><span>Multiple forwarding setups</span><span>SOCKS5 CONNECT</span><span>Shared-key encryption</span></div></section>
+  <section class="capability-strip" aria-label="Capabilities"><div class="wrap"><span>IPv4 + IPv6</span><span>IP + subnet ACLs</span><span>Configurable compression</span><span>Shared-key encryption</span><span>Windows + Linux services</span></div></section>
   <section id="how" class="wrap features">
     <div class="section-intro"><p class="eyebrow">TUNNEL OPTIONS</p><h2>Compression,<br>batching, and<br><span>forwarding.</span></h2></div>
     <div class="feature-list">
-      <article><span class="index">01 /</span><div><h3>Bounded send buffering</h3><p>Send immediately, or collect data for a maximum number of milliseconds. A full buffer goes out without waiting for the deadline.</p></div></article>
+      <article><span class="index">01 /</span><div><h3>Dual-stack access control</h3><p>Listen and connect over IPv4 or IPv6. Per-forward ACLs accept exact IP addresses and CIDR subnets, with explicit allow and deny lists.</p></div></article>
       <article><span class="index">02 /</span><div><h3>Configurable compression</h3><p>Choose Brotli, LZ4, Zstandard, Deflate, GZip, ZLib, or no compression. Brotli can retain history across frames to reuse repeated content.</p></div></article>
       <article><span class="index">03 /</span><div><h3>One key per client</h3><p>Encrypt after compression with ChaCha20-Poly1305, AES-256-GCM, or AES-256-CCM. Use a separate 32-byte shared key for each client; remove its entry and restart the server to revoke access.</p></div></article>
-      <article><span class="index">04 /</span><div><h3>Multiple forwarding setups</h3><p>Run independent forwarding setups with their own compression, encryption keys, connection limits, retries, socket settings, and packet captures.</p></div></article>
+      <article><span class="index">04 /</span><div><h3>Operational deployment</h3><p>Install named Windows or systemd services from the executable. Structured lifecycle logs correlate attempts, denials, connections, retries, failures, and closures; debug mode adds protocol context.</p></div></article>
     </div>
   </section>
   <section id="configure" class="configure-section"><div class="wrap">
@@ -74,8 +74,8 @@
     <div class="download-heading"><div><p class="eyebrow">WINDOWS AND LINUX</p><h2>Download TcpTunnel.</h2></div><p>Self-contained packages.<br>No separate .NET installation required.</p></div>
     <p id="release-status" class="release-status" role="status">Checking GitHub for downloadable releases…</p>
     <div class="download-grid">
-      <article><div class="os-name"><span class="os-symbol" aria-hidden="true">⊞</span><h3>Windows</h3></div><p>Install with an MSI or EXE, or unpack a portable ZIP.</p><div id="windows-downloads" class="download-links"><a href="https://github.com/tedd/Tedd.TcpTunnel/actions/workflows/build.yml?query=branch%3Adeploy">Browse Windows builds <span aria-hidden="true">↗</span></a></div></article>
-      <article><div class="os-name"><span class="os-symbol mono" aria-hidden="true">&gt;_</span><h3>Linux</h3></div><p>Unpack the ZIP, make the binary executable, and run.</p><div id="linux-downloads" class="download-links"><a href="https://github.com/tedd/Tedd.TcpTunnel/actions/workflows/build.yml?query=branch%3Adeploy">Browse Linux builds <span aria-hidden="true">↗</span></a></div></article>
+      <article><div class="os-name"><span class="os-symbol" aria-hidden="true">⊞</span><h3>Windows</h3></div><p>Install with an MSI or EXE, or unpack a portable ZIP. The CLI can register and remove named Windows services.</p><div id="windows-downloads" class="download-links"><a href="https://github.com/tedd/Tedd.TcpTunnel/actions/workflows/build.yml?query=branch%3Adeploy">Browse Windows builds <span aria-hidden="true">↗</span></a></div></article>
+      <article><div class="os-name"><span class="os-symbol mono" aria-hidden="true">&gt;_</span><h3>Linux</h3></div><p>Unpack the ZIP, make the binary executable, and run. The CLI can install and uninstall named systemd units.</p><div id="linux-downloads" class="download-links"><a href="https://github.com/tedd/Tedd.TcpTunnel/actions/workflows/build.yml?query=branch%3Adeploy">Browse Linux builds <span aria-hidden="true">↗</span></a></div></article>
     </div>
     <div class="install-builder"><div class="install-controls"><div><h3>Download and install</h3><p>Generate one command for a published release. Windows uses the EXE installer; Linux installs the portable package for the current user.</p></div><div class="install-fields"><label>Platform<select id="install-platform"><option value="windows">Windows</option><option value="linux">Linux</option></select></label><label>Architecture<select id="install-architecture"><option value="x64">x64</option><option value="arm64">ARM64</option></select></label></div><fieldset class="choice-group"><legend>Shell</legend><div class="choice-row"><button type="button" data-install-shell="powershell" aria-pressed="true">PowerShell</button><button type="button" data-install-shell="cmd" aria-pressed="false">Command Prompt</button><button type="button" data-install-shell="bash" aria-pressed="false">Bash</button></div></fieldset></div><div class="command-panel install-command-panel"><div class="command-top"><span id="install-command-label">WINDOWS · X64 · POWERSHELL</span><button id="copy-install" type="button" disabled>Copy command</button></div><pre><code id="install-command">Waiting for a published GitHub release…</code></pre><p id="install-note">The installer adds TcpTunnel to the system PATH. Open a new terminal before running it.</p><span id="install-copy-status" role="status" aria-live="polite"></span></div></div>
     <div class="download-footnote"><p>Build artifacts on GitHub Actions require a GitHub account. .NET 11 is currently a release candidate.</p><a href="https://github.com/tedd/Tedd.TcpTunnel/releases">All releases <span aria-hidden="true">↗</span></a></div>
@@ -92,7 +92,7 @@
     <div class="benchmark-table-wrap"><table><caption>All measured compression and encryption profiles</caption><thead><tr><th scope="col">Profile</th><th scope="col">Settings</th><th scope="col">Input</th><th scope="col">Median MiB/s</th><th scope="col">Peak MiB/s</th></tr></thead><tbody id="benchmark-table-body"></tbody></table></div>
     <noscript><p>JavaScript is required for the result tables. The graph remains available above, and the complete results are in <a href="https://github.com/tedd/Tedd.TcpTunnel/blob/main/benchmarks.md">benchmarks.md</a>.</p></noscript>
   </div></section>
-  <section class="wrap operational"><h2>Updates and security.</h2><div><p><strong>GitHub updates.</strong> GitHub version checks offer an update. Downloads are verified against release checksums. Portable updates keep the previous binary; installed copies use an installer.</p><p><strong>Transport security.</strong> Client/Server pairs can authenticate and encrypt the tunnel with .NET cryptographic algorithms and one shared key per client. Encryption is optional and must match at both ends. The shared-key protocol has no forward secrecy and has not been independently audited. Disable compression when attacker-controlled data and secrets could share a compression context. PCAP captures contain plaintext. <a href="https://github.com/tedd/Tedd.TcpTunnel/tree/deploy#encrypt-a-link">Key setup and revocation</a>.</p></div></section>
+  <section class="wrap operational"><h2>Operations and security.</h2><div><p><strong>Services and logs.</strong> Install or remove named Windows and systemd services from the CLI. JSON-line logs record connection attempts, ACL decisions, establishment, retries, failures, and closure; debug logging adds handshake and exception detail. <a href="https://github.com/tedd/Tedd.TcpTunnel/tree/deploy#run-as-a-service">Service commands</a>.</p><p><strong>Transport security.</strong> Source ACLs accept IPv4/IPv6 addresses and CIDR subnets. Client/Server pairs can authenticate and encrypt the tunnel with one shared key per client. The protocol has no forward secrecy and has not been independently audited. Disable compression when attacker-controlled data and secrets could share a compression context. PCAP captures contain plaintext. <a href="https://github.com/tedd/Tedd.TcpTunnel/tree/deploy#encrypt-a-link">Key setup and revocation</a>.</p></div></section>
 </main>
 <footer class="wrap"><a class="brand" href="#">Tedd<span class="brand-dot">.</span>TcpTunnel</a><span>Open source. LGPL-2.1 licensed.</span><a href="https://github.com/tedd/Tedd.TcpTunnel/tree/deploy">Source &amp; documentation <span aria-hidden="true">↗</span></a></footer>
 </body></html>

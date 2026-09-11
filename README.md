@@ -1,7 +1,8 @@
 # Tedd.TcpTunnel
 
-TCP forwarding for Windows and Linux, with configurable compression, authenticated encryption, bounded batching,
-SOCKS5 CONNECT, multiple forwarding setups, and concurrent connections.
+TCP forwarding for Windows and Linux, with IPv4/IPv6, source-network ACLs, configurable compression,
+authenticated encryption, structured logging, service management, bounded batching, SOCKS5 CONNECT,
+multiple forwarding setups, and concurrent connections.
 
 [Website](https://tedd.no/Tedd.TcpTunnel/) ·
 [Downloads](https://github.com/tedd/Tedd.TcpTunnel/releases) ·
@@ -140,6 +141,41 @@ connection to the destination. Raw mode works with ordinary TCP services.
 Client/Server pairs support authenticated shared-key encryption after compression.
 Raw and SOCKS5 modes, and pairs with `Encryption.Algorithm=None`, carry plaintext. Listeners
 bind to loopback by default. Changing the bind address exposes that interface.
+
+### IPv4 and IPv6
+
+`ListenAddress` accepts an IPv4 or IPv6 literal. Use `0.0.0.0` for all IPv4 interfaces, `::`
+for all IPv6 interfaces, `127.0.0.1` for IPv4 loopback, or `::1` for IPv6 loopback. IPv6
+listeners use `Socket.DualMode=true` by default, so an `::` listener accepts both IPv6 and
+IPv4 on operating systems that support dual-stack sockets. Set it to `false` for IPv6 only.
+
+`RemoteHost` accepts IPv4 and IPv6 literals or a DNS name. DNS destinations use the runtime's
+address-family selection and connection racing. Write IPv6 literals without URL brackets, for
+example `--remote-host 2001:db8::20`.
+
+### Source ACLs
+
+Each forward can allow or deny exact source IP addresses and CIDR subnets in either address
+family. Deny rules take precedence. An empty allow list permits sources not denied; a non-empty
+allow list rejects sources that match no allow rule. IPv4-mapped IPv6 peers are evaluated as IPv4.
+
+```json
+{
+  "Name": "sql",
+  "ListenAddress": "::",
+  "ListenPort": 14330,
+  "RemoteHost": "2001:db8::20",
+  "RemotePort": 1433,
+  "AccessControl": {
+    "Allow": ["192.0.2.0/24", "2001:db8:100::/48", "203.0.113.7"],
+    "Deny": ["192.0.2.128/25"]
+  }
+}
+```
+
+Repeat `--access-control:allow` or `--access-control:deny` to supply rules on the CLI. ACLs
+are evaluated immediately after accept, before SOCKS or tunnel handshakes and before a
+destination connection is opened.
 
 ## Compress a link
 
@@ -370,7 +406,8 @@ connections and opt-in PCAP captures contain plaintext.
       "RemoteHost": "database.example", "RemotePort": 5432 },
     { "Name": "proxy", "Mode": "Socks5", "ListenPort": 1080, "MaxConnections": 256 }
   ],
-  "Update": { "CheckOnStartup": true, "Repository": "tedd/Tedd.TcpTunnel" }
+  "Update": { "CheckOnStartup": true, "Repository": "tedd/Tedd.TcpTunnel" },
+  "Logging": { "Level": "Information", "Console": true, "File": null }
 }
 ```
 
@@ -420,6 +457,11 @@ supports comments and trailing commas.
 | `--write-config PATH` | Write effective configuration and exit |
 | `--check` | Validate without opening sockets |
 | `--generate-key` | Generate a 32-byte Base64 shared key and exit |
+| `--debug` | Set `Logging.Level=Debug` |
+| `--log-file PATH` | Append structured logs to a file |
+| `--install-service --config PATH` | Install and start a Windows or systemd service |
+| `--uninstall-service` | Stop and uninstall the service |
+| `--service-name NAME` | Select a named service instance |
 | `--help` / `-h` | Usage and complete option template |
 | `--version` | Application version |
 | `--check-update` | Check GitHub and exit |
@@ -450,7 +492,8 @@ connections use TCP keepalive instead.
 
 `Socket` exposes `NoDelay`, `KeepAlive`, `KeepAliveSeconds`, `KeepAliveIntervalSeconds`,
 `KeepAliveRetryCount`, `SendBufferSize`, `ReceiveBufferSize`, `DualMode`, and `ReuseAddress`.
-Zero buffer sizes preserve OS defaults. IPv6 `DualMode` applies to listening sockets.
+Zero buffer sizes preserve OS defaults. IPv6 `DualMode` applies to listening sockets and
+defaults to `true`.
 
 Linux exposes `LinuxQuickAck`, `LinuxUserTimeoutMilliseconds`, and `LinuxCongestionControl`
 (for example, `cubic`, or `bbr` when available). Quick ACK is rearmed after receives. Windows
@@ -459,7 +502,14 @@ produce warnings; kernel availability and permissions determine which settings a
 
 ### Logging and packet capture
 
-Operational events are JSON lines on stderr. Capture is opt-in:
+Operational events are one JSON object per line on stderr. Connection attempt, ACL denial,
+destination retry, establishment, failure, and closure events include a per-forward connection
+ID and the relevant endpoints. Closure events include duration. Set `Logging.Level=Debug` or
+pass `--debug` for destination-selection, handshake, shutdown-cancellation, and exception-detail
+events. `Logging.Console=false` disables stderr; `Logging.File` appends the same JSON lines to a
+file. Relative log paths in a configuration file resolve from that file's directory.
+
+Capture remains separately opt-in:
 
 ```sh
 tcptunnel --config tunnel.json --forward database --capture:directory captures --capture:max-file-bytes 67108864 --capture:retained-files 4
@@ -474,6 +524,36 @@ Files rotate at `MaxFileBytes`; `RetainedFiles` bounds a forward's files within 
 process run. Runs have unique prefixes. Retain/remove older runs according to your storage
 policy. Captures can contain credentials and other payloads. Capture write failures terminate
 the affected connection and appear in operational logs.
+
+## Run as a service
+
+Service installation requires a published self-contained executable and a persistent JSON
+configuration file. The executable validates the configuration, registers one automatic-start
+service, and starts it. Use distinct service names for independent instances.
+
+From an elevated Windows terminal:
+
+```powershell
+tcptunnel --install-service --service-name sql-tunnel --config C:\ProgramData\Tedd.TcpTunnel\sql-tunnel.json
+tcptunnel --uninstall-service --service-name sql-tunnel
+```
+
+The executable runs under the Windows Service Control Manager and responds to stop and shutdown
+controls. When `Logging.File` is unset, a Windows service writes to
+`%ProgramData%\Tedd.TcpTunnel\tcptunnel.log`; set an explicit file for separate instance logs.
+
+On a systemd-based Linux host:
+
+```bash
+sudo "$(command -v tcptunnel)" --install-service --service-name sql-tunnel --config /etc/tcptunnel/sql-tunnel.json
+sudo "$(command -v tcptunnel)" --uninstall-service --service-name sql-tunnel
+journalctl -u sql-tunnel.service
+```
+
+The Linux command writes `/etc/systemd/system/sql-tunnel.service`, reloads systemd, and enables
+and starts the unit. Standard error is captured by the journal. Installation does not copy the
+executable or configuration; keep both paths stable. Uninstall the service before removing a
+Windows package that owns its executable.
 
 ## Updates
 

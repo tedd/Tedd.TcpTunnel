@@ -8,6 +8,7 @@ public sealed class Listener
 {
     private readonly ForwardOptions _options;
     private readonly Action<TunnelEvent>? _log;
+    private readonly IpAccessControl _accessControl;
     private readonly ConcurrentDictionary<long, Task> _connections = new();
     private readonly TaskCompletionSource<IPEndPoint> _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _started;
@@ -16,7 +17,7 @@ public sealed class Listener
     public int ActiveConnections => _connections.Count;
 
     public Listener(ForwardOptions options, Action<TunnelEvent>? log = null)
-    { options.Validate(); _options = options; _log = log; }
+    { options.Validate(); _options = options; _log = log; _accessControl = IpAccessControl.Create(options.AccessControl); }
 
     public async Task Start(CancellationToken cancellationToken = default)
     {
@@ -36,7 +37,7 @@ public sealed class Listener
             listener.Listen(_options.Backlog);
             var endpoint = (IPEndPoint)listener.LocalEndPoint!;
             _ready.TrySetResult(endpoint);
-            Log("info", $"Listening on {endpoint} ({_options.Mode}, {_options.Execution}).");
+            Log("info", "listener-started", $"Listening on {endpoint} ({_options.Mode}, {_options.Execution}).");
             while (true)
             {
                 await limit.WaitAsync(stop.Token).ConfigureAwait(false);
@@ -48,7 +49,7 @@ public sealed class Listener
                 async Task ProcessTrackedAsync()
                 {
                     await start.Task.ConfigureAwait(false);
-                    try { await ProcessAsync(accepted, capture, stop.Token).ConfigureAwait(false); }
+                    try { await ProcessAsync(id, accepted, capture, stop.Token).ConfigureAwait(false); }
                     finally { limit.Release(); _connections.TryRemove(id, out var ignored); }
                 }
                 var task = ProcessTrackedAsync();
@@ -67,14 +68,23 @@ public sealed class Listener
         }
     }
 
-    private async Task ProcessAsync(Socket accepted, PcapWriter? capture, CancellationToken token)
+    private async Task ProcessAsync(long id, Socket accepted, PcapWriter? capture, CancellationToken token)
     {
         using (accepted)
         {
+            var started = Environment.TickCount64;
+            var source = (accepted.RemoteEndPoint as IPEndPoint)?.ToString();
+            string? destination = null;
             var socksReady = false;
             try
             {
-                SocketTuning.Apply(accepted, _options.Socket, message => Log("warning", message));
+                Log("info", "connection-attempt", $"Connection attempt from {source ?? "unknown endpoint"}.", id: id, source: source);
+                if (accepted.RemoteEndPoint is not IPEndPoint peer || !_accessControl.IsAllowed(peer.Address))
+                {
+                    Log("warning", "connection-denied", $"Connection from {source ?? "unknown endpoint"} denied by ACL.", id: id, source: source);
+                    return;
+                }
+                SocketTuning.Apply(accepted, _options.Socket, message => Log("warning", "socket-tuning", message, id: id, source: source));
                 var host = _options.RemoteHost;
                 var port = _options.RemotePort;
                 if (_options.Mode == TunnelMode.Socks5)
@@ -83,23 +93,37 @@ public sealed class Listener
                     deadline.CancelAfter(_options.HandshakeTimeoutMilliseconds);
                     (host, port) = await Socks5.ReadTargetAsync(accepted, deadline.Token).ConfigureAwait(false);
                     socksReady = true;
+                    Log("debug", "socks-target", $"SOCKS target is {host}:{port}.", id: id, source: source, destination: $"{host}:{port}");
                 }
+                destination = $"{host}:{port}";
                 using var serverSession = _options.Mode == TunnelMode.Server
                     ? await TunnelHandshake.NegotiateAsync(accepted, _options, token).ConfigureAwait(false) : null;
+                if (serverSession is not null) Log("debug", "handshake-completed", "Incoming tunnel handshake completed.", id: id, source: source, destination: destination);
+                Log("debug", "connect-started", $"Connecting to {destination}.", id: id, source: source, destination: destination);
                 using var remote = await Connector.ConnectAsync(host, port, _options.Retry, token,
-                    (ex, attempt) => Log("warning", $"Connect attempt {attempt} to {host}:{port} failed.", ex)).ConfigureAwait(false);
-                SocketTuning.Apply(remote, _options.Socket, message => Log("warning", message));
+                    (ex, attempt) => Log("warning", "connect-retry", $"Connect attempt {attempt} to {destination} failed.", ex, id, source, destination)).ConfigureAwait(false);
+                destination = remote.RemoteEndPoint?.ToString() ?? destination;
+                SocketTuning.Apply(remote, _options.Socket, message => Log("warning", "socket-tuning", message, id: id, source: source, destination: destination));
                 if (socksReady) { await Socks5.ReplyAsync(accepted, 0, (IPEndPoint)remote.LocalEndPoint!, token).ConfigureAwait(false); socksReady = false; }
                 using var clientSession = _options.Mode == TunnelMode.Client
                     ? await TunnelHandshake.NegotiateAsync(remote, _options, token).ConfigureAwait(false) : null;
+                if (clientSession is not null) Log("debug", "handshake-completed", "Outgoing tunnel handshake completed.", id: id, source: source, destination: destination);
+                Log("info", "connection-established", $"Connection established from {source} to {destination}.", id: id, source: source, destination: destination);
                 await new TunnelConnection(accepted, remote, _options, capture, serverSession ?? clientSession).RunAsync(token).ConfigureAwait(false);
+                Log("info", "connection-closed", "Connection closed.", id: id, source: source, destination: destination,
+                    duration: Environment.TickCount64 - started);
             }
-            catch (Exception ex) when (token.IsCancellationRequested && ex is OperationCanceledException or SocketException or ObjectDisposedException or IOException) { }
+            catch (Exception ex) when (token.IsCancellationRequested && ex is OperationCanceledException or SocketException or ObjectDisposedException or IOException)
+            {
+                Log("debug", "connection-cancelled", "Connection cancelled during shutdown.", ex, id, source, destination,
+                    Environment.TickCount64 - started);
+            }
             catch (Exception ex)
             {
                 if (_options.Mode == TunnelMode.Client && _options.Encryption.Algorithm != EncryptionAlgorithm.None)
                     SocketTuning.ResetOnClose(accepted);
-                Log("error", "Connection terminated.", ex);
+                Log("error", "connection-failed", "Connection terminated.", ex, id, source, destination,
+                    Environment.TickCount64 - started);
                 if (socksReady)
                 {
                     try { await Socks5.ReplyAsync(accepted, 5, new IPEndPoint(IPAddress.Any, 0), token).ConfigureAwait(false); }
@@ -109,7 +133,9 @@ public sealed class Listener
         }
     }
 
-    private void Log(string level, string message, Exception? exception = null) => _log?.Invoke(new(_options.Name, level, message, exception));
+    private void Log(string level, string eventName, string message, Exception? exception = null, long? id = null,
+        string? source = null, string? destination = null, long? duration = null) =>
+        _log?.Invoke(new(_options.Name, level, message, exception, eventName, id, source, destination, duration));
 }
 
 public sealed class TunnelHost
