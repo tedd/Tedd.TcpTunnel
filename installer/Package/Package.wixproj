@@ -1,0 +1,14 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+  <PropertyGroup>
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
+    <OutputType>Package</OutputType>
+    <PackageVersion Condition="'$(PackageVersion)' == ''">2.0.0</PackageVersion>
+    <PublishDirectory Condition="'$(PublishDirectory)' == ''">$(MSBuildThisFileDirectory)..\..\artifacts\publish\win-x64</PublishDirectory>
+    <DefineConstants>PackageVersion=$(PackageVersion);PublishDirectory=$(PublishDirectory)</DefineConstants>
+    <OutputName>tcptunnel-$(PackageVersion)-win-$(InstallerPlatform)</OutputName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="5.0.2" />
+  </ItemGroup>
+</Project>
+

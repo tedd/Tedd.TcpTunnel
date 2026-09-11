@@ -1,45 +1,26 @@
-using System;
 using System.Buffers;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
-namespace Tedd.TcpTunnel
+namespace Tedd.TcpTunnel;
+
+public static class ExtensionMethods
 {
-    public static class ExtensionMethods
+    /// <summary>Copies a stream with a pooled buffer, flushing after each nonempty read.</summary>
+    public static async Task CopyToAsyncWithFlush(this Stream source, Stream destination, int bufferSize, CancellationToken cancellationToken)
     {
-        /// <summary>
-        /// Copies the contents of the source stream to the destination stream and flushes after each read.
-        /// Complexity:
-        /// Time: O(N) where N is the number of bytes in the stream.
-        /// Space: O(bufferSize) for the working buffer (rented via ArrayPool to avoid per-call allocations).
-        /// </summary>
-        public static async Task CopyToAsyncWithFlush(this Stream source, Stream destination, int bufferSize, CancellationToken cancellationToken)
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(destination);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (bufferSize < 1) bufferSize = 81920;
+        var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+        try
         {
-            if (bufferSize < 1)
-                bufferSize = 81920;
-
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
-            try
+            int count;
+            while ((count = await source.ReadAsync(buffer.AsMemory(0, bufferSize), cancellationToken).ConfigureAwait(false)) != 0)
             {
-                var bytesRead = -1;
-                while (bytesRead != 0 && !cancellationToken.IsCancellationRequested)
-                {
-                    bytesRead = await source.ReadAsync(buffer, 0, bufferSize, cancellationToken);
-                    if (bytesRead == 0)
-                        continue;
-
-                    await destination.WriteAsync(buffer, 0, bytesRead, cancellationToken);
-                    await destination.FlushAsync(cancellationToken);
-                }
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
+                await destination.WriteAsync(buffer.AsMemory(0, count), cancellationToken).ConfigureAwait(false);
+                await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
         }
+        finally { ArrayPool<byte>.Shared.Return(buffer); }
     }
 }

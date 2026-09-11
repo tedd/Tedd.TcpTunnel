@@ -1,12 +1,6 @@
 using BenchmarkDotNet.Running;
-
-namespace Tedd.TcpTunnel.Benchmarks
+namespace Tedd.TcpTunnel.Benchmarks;
+internal static class Program
 {
-    class Program
-    {
-        static void Main(string[] args)
-        {
-            BenchmarkRunner.Run<StreamCopyBenchmark>();
-        }
-    }
+    public static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
 }
