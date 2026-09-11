@@ -14,15 +14,110 @@ SOCKS5 CONNECT, multiple forwarding setups, and concurrent connections.
 | Windows | x64, ARM64 | MSI, EXE setup, portable ZIP |
 | Linux (glibc) | x64, ARM64 | Portable ZIP |
 
+The following commands resolve the current published release and select x64 or ARM64
+automatically.
+
+### Windows
+
+PowerShell:
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$arch = switch ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture) {
+    'X64' { 'x64' }
+    'Arm64' { 'arm64' }
+    default { throw 'TcpTunnel supports Windows x64 and ARM64.' }
+}
+$release = Invoke-RestMethod 'https://api.github.com/repos/tedd/Tedd.TcpTunnel/releases/latest'
+$asset = $release.assets | Where-Object name -Like "*-win-$arch-setup.exe" | Select-Object -First 1
+if (!$asset) { throw "No Windows $arch installer is present in the latest release." }
+$installer = Join-Path $env:TEMP $asset.name
+Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $installer
+Start-Process -FilePath $installer -Wait
+Remove-Item -LiteralPath $installer
+```
+
+Command Prompt:
+
+```bat
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $arch=if($env:PROCESSOR_ARCHITECTURE -eq 'ARM64'){'arm64'}else{'x64'}; $release=Invoke-RestMethod 'https://api.github.com/repos/tedd/Tedd.TcpTunnel/releases/latest'; $asset=$release.assets | Where-Object name -Like ('*-win-'+$arch+'-setup.exe') | Select-Object -First 1; if(!$asset){throw 'No compatible Windows installer is present in the latest release.'}; $installer=Join-Path $env:TEMP $asset.name; Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $installer; Start-Process -FilePath $installer -Wait; Remove-Item -LiteralPath $installer"
+```
+
+Bash (Git Bash):
+
+```bash
+case "$(uname -m)" in
+  x86_64) arch=x64 ;;
+  arm64|aarch64) arch=arm64 ;;
+  *) echo "TcpTunnel supports Windows x64 and ARM64." >&2; exit 1 ;;
+esac
+release_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/tedd/Tedd.TcpTunnel/releases/latest)"
+version="${release_url##*/v}"
+installer="$(mktemp --suffix=.exe)"
+curl -fL "https://github.com/tedd/Tedd.TcpTunnel/releases/download/v$version/tcptunnel-$version-win-$arch-setup.exe" -o "$installer" &&
+  "$installer" &&
+  rm -f "$installer"
+```
+
+The EXE setup installs the MSI, registers upgrades and uninstallation, and adds the
+installation directory to the system PATH. Open a new terminal after installation.
+
+### Linux
+
+Bash:
+
+```bash
+case "$(uname -m)" in
+  x86_64) arch=x64 ;;
+  arm64|aarch64) arch=arm64 ;;
+  *) echo "TcpTunnel supports Linux x64 and ARM64." >&2; exit 1 ;;
+esac
+release_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/tedd/Tedd.TcpTunnel/releases/latest)"
+version="${release_url##*/v}"
+archive="$(mktemp --suffix=.zip)"
+install_root="${XDG_DATA_HOME:-$HOME/.local/share}/tcptunnel"
+bin_dir="$HOME/.local/bin"
+curl -fL "https://github.com/tedd/Tedd.TcpTunnel/releases/download/v$version/tcptunnel-$version-linux-$arch.zip" -o "$archive" &&
+  mkdir -p "$install_root" "$bin_dir" &&
+  unzip -oq "$archive" -d "$install_root" &&
+  chmod +x "$install_root/tcptunnel" &&
+  ln -sfn "$install_root/tcptunnel" "$bin_dir/tcptunnel" &&
+  rm -f "$archive"
+```
+
+PowerShell 7:
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$arch = switch ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture) {
+    'X64' { 'x64' }
+    'Arm64' { 'arm64' }
+    default { throw 'TcpTunnel supports Linux x64 and ARM64.' }
+}
+$release = Invoke-RestMethod 'https://api.github.com/repos/tedd/Tedd.TcpTunnel/releases/latest'
+$asset = $release.assets | Where-Object name -Like "*-linux-$arch.zip" | Select-Object -First 1
+if (!$asset) { throw "No Linux $arch package is present in the latest release." }
+$archive = Join-Path ([IO.Path]::GetTempPath()) $asset.name
+$installRoot = Join-Path $HOME '.local/share/tcptunnel'
+$binDir = Join-Path $HOME '.local/bin'
+Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $archive
+New-Item -ItemType Directory -Force -Path $installRoot, $binDir | Out-Null
+Expand-Archive -LiteralPath $archive -DestinationPath $installRoot -Force
+& chmod +x (Join-Path $installRoot 'tcptunnel')
+& ln -sfn (Join-Path $installRoot 'tcptunnel') (Join-Path $binDir 'tcptunnel')
+Remove-Item -LiteralPath $archive
+```
+
+The Linux commands require `curl` and `unzip`, install under `~/.local/share/tcptunnel`,
+and link the executable into `~/.local/bin`. Ensure `~/.local/bin` is on `PATH`.
+
 Packages are self-contained: a separate .NET installation is unnecessary. The portable
 application is a single executable, accompanied by documentation, a license, an example
 configuration, and an installation marker. Native runtime components may extract on first run.
 
-Windows installers install into Program Files, register uninstallation and upgrades, and
-add the installation directory to the system PATH. Open a new terminal after installation.
-The EXE wraps the MSI. Packages are unsigned unless the release maintainer signs them.
+Windows packages are unsigned unless the release maintainer signs them.
 
-For Linux, extract the ZIP and run:
+To run a portable Linux package without installing it, extract the ZIP and run:
 
 ```sh
 chmod +x tcptunnel
@@ -48,16 +143,67 @@ bind to loopback by default. Changing the bind address exposes that interface.
 
 ## Compress a link
 
-Run a tunnel server near the destination:
+Run a tunnel server near the destination and a client near the application. The examples
+below are equivalent.
 
-```sh
-tcptunnel --forward server --mode Server --listen-address 0.0.0.0 --listen-port 9001 --remote-host 127.0.0.1 --remote-port 5432 --compression Brotli --compression-history true
+### Bash
+
+Server:
+
+```bash
+tcptunnel --forward server --mode Server \
+  --listen-address 0.0.0.0 --listen-port 9001 \
+  --remote-host 127.0.0.1 --remote-port 5432 \
+  --compression Brotli --compression-history true
 ```
 
-Run a client near the application:
+Client:
 
-```sh
-tcptunnel --forward client --mode Client --listen-port 9000 --remote-host tunnel.example --remote-port 9001 --compression Brotli --compression-history true
+```bash
+tcptunnel --forward client --mode Client \
+  --listen-address 127.0.0.1 --listen-port 9000 \
+  --remote-host tunnel.example --remote-port 9001 \
+  --compression Brotli --compression-history true
+```
+
+### PowerShell
+
+Server:
+
+```powershell
+tcptunnel --forward server --mode Server `
+  --listen-address 0.0.0.0 --listen-port 9001 `
+  --remote-host 127.0.0.1 --remote-port 5432 `
+  --compression Brotli --compression-history true
+```
+
+Client:
+
+```powershell
+tcptunnel --forward client --mode Client `
+  --listen-address 127.0.0.1 --listen-port 9000 `
+  --remote-host tunnel.example --remote-port 9001 `
+  --compression Brotli --compression-history true
+```
+
+### Command Prompt
+
+Server:
+
+```bat
+tcptunnel --forward server --mode Server ^
+  --listen-address 0.0.0.0 --listen-port 9001 ^
+  --remote-host 127.0.0.1 --remote-port 5432 ^
+  --compression Brotli --compression-history true
+```
+
+Client:
+
+```bat
+tcptunnel --forward client --mode Client ^
+  --listen-address 127.0.0.1 --listen-port 9000 ^
+  --remote-host tunnel.example --remote-port 9001 ^
+  --compression Brotli --compression-history true
 ```
 
 Connect the application to `127.0.0.1:9000`. Both directions use compression. Each application

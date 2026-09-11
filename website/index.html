@@ -8,6 +8,7 @@
   <title>Tedd.TcpTunnel — TCP tunnel for Windows and Linux</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="commands.css">
   <script src="app.js" type="module"></script>
 </head>
 <body>
@@ -46,12 +47,25 @@
       <article><span class="index">03 /</span><div><h3>Multiple forwarding setups</h3><p>Run independent forwarding setups with their own compression, connection limits, retries, socket settings, and packet captures.</p></div></article>
     </div>
   </section>
-  <section id="configure" class="configure-section"><div class="wrap configure-grid">
-    <div><p class="eyebrow">CONFIGURATION</p><h2>JSON config<br>or command line.</h2><p>Every setting is available in JSON and on the command line. Select an example, then set the addresses, ports, and options for your connection.</p><div class="profile-options" role="group" aria-label="Example profile"><button type="button" data-profile="latency" aria-pressed="true">Low latency</button><button type="button" data-profile="throughput" aria-pressed="false">Throughput</button><button type="button" data-profile="compression" aria-pressed="false">Compression</button></div></div>
-    <div class="command-panel"><div class="command-top"><span>TERMINAL</span><button id="copy" type="button">Copy command</button></div><pre><code id="command">tcptunnel --forward app --mode Client
-  --listen-port 9000 --remote-host tunnel.example
-  --remote-port 9001 --compression Lz4
-  --batch-milliseconds 0 --socket:no-delay true</code></pre><p id="profile-note">LZ4 with immediate forwarding and TCP_NODELAY. Run a matching Server on the other end.</p><span id="copy-status" role="status" aria-live="polite"></span></div>
+  <section id="configure" class="configure-section"><div class="wrap">
+    <div class="configure-heading"><div><p class="eyebrow">COMMAND BUILDER</p><h2>Set up either end<br>in one command.</h2></div><p>Choose a role and enter the two endpoints. The generated command runs directly in Bash, PowerShell, or Command Prompt; no configuration file is required.</p></div>
+    <div class="builder-layout">
+      <form id="command-form" class="builder-controls">
+        <fieldset class="choice-group"><legend>Role</legend><div class="choice-row"><button type="button" data-role="client" aria-pressed="true">Client</button><button type="button" data-role="server" aria-pressed="false">Server</button></div></fieldset>
+        <div class="field-grid">
+          <label>Forward name<input id="forward-name" name="forward-name" value="app" required maxlength="100" pattern="[A-Za-z0-9_-]+" spellcheck="false"></label>
+          <label>Listen address<input id="listen-address" name="listen-address" value="127.0.0.1" required pattern="[A-Fa-f0-9:.]+" spellcheck="false"></label>
+          <label>Listen port<input id="listen-port" name="listen-port" type="number" value="9000" required min="0" max="65535" inputmode="numeric"></label>
+          <label>Remote host<input id="remote-host" name="remote-host" value="tunnel.example" required pattern="[A-Za-z0-9._:-]+" spellcheck="false"></label>
+          <label>Remote port<input id="remote-port" name="remote-port" type="number" value="9001" required min="1" max="65535" inputmode="numeric"></label>
+          <label>Compression<select id="compression" name="compression"><option>Lz4</option><option>Brotli</option><option>Zstandard</option><option>None</option><option>Deflate</option><option>GZip</option><option>ZLib</option></select></label>
+          <label>Batch delay (ms)<input id="batch-milliseconds" name="batch-milliseconds" type="number" value="0" required min="0" max="10000" inputmode="numeric"></label>
+          <label class="check-field"><input id="compression-history" name="compression-history" type="checkbox"> Retain Brotli history</label>
+        </div>
+        <fieldset class="choice-group shell-choice"><legend>Shell</legend><div class="choice-row"><button type="button" data-shell="bash" aria-pressed="true">Bash</button><button type="button" data-shell="powershell" aria-pressed="false">PowerShell</button><button type="button" data-shell="cmd" aria-pressed="false">Command Prompt</button></div></fieldset>
+      </form>
+      <div class="command-panel"><div class="command-top"><span id="command-label">CLIENT · BASH</span><button id="copy-command" type="button">Copy command</button></div><pre><code id="command"></code></pre><p id="command-note">Run this near the application. It listens locally and connects to the tunnel server.</p><span id="copy-status" role="status" aria-live="polite"></span></div>
+    </div>
   </div></section>
   <section id="download" class="wrap downloads">
     <div class="download-heading"><div><p class="eyebrow">WINDOWS AND LINUX</p><h2>Download TcpTunnel.</h2></div><p>Self-contained packages.<br>No separate .NET installation required.</p></div>
@@ -60,6 +74,7 @@
       <article><div class="os-name"><span class="os-symbol" aria-hidden="true">⊞</span><h3>Windows</h3></div><p>Install with an MSI or EXE, or unpack a portable ZIP.</p><div id="windows-downloads" class="download-links"><a href="https://github.com/tedd/Tedd.TcpTunnel/actions/workflows/build.yml?query=branch%3Adeploy">Browse Windows builds <span aria-hidden="true">↗</span></a></div></article>
       <article><div class="os-name"><span class="os-symbol mono" aria-hidden="true">&gt;_</span><h3>Linux</h3></div><p>Unpack the ZIP, make the binary executable, and run.</p><div id="linux-downloads" class="download-links"><a href="https://github.com/tedd/Tedd.TcpTunnel/actions/workflows/build.yml?query=branch%3Adeploy">Browse Linux builds <span aria-hidden="true">↗</span></a></div></article>
     </div>
+    <div class="install-builder"><div class="install-controls"><div><h3>Download and install</h3><p>Generate one command for a published release. Windows uses the EXE installer; Linux installs the portable package for the current user.</p></div><div class="install-fields"><label>Platform<select id="install-platform"><option value="windows">Windows</option><option value="linux">Linux</option></select></label><label>Architecture<select id="install-architecture"><option value="x64">x64</option><option value="arm64">ARM64</option></select></label></div><fieldset class="choice-group"><legend>Shell</legend><div class="choice-row"><button type="button" data-install-shell="powershell" aria-pressed="true">PowerShell</button><button type="button" data-install-shell="cmd" aria-pressed="false">Command Prompt</button><button type="button" data-install-shell="bash" aria-pressed="false">Bash</button></div></fieldset></div><div class="command-panel install-command-panel"><div class="command-top"><span id="install-command-label">WINDOWS · X64 · POWERSHELL</span><button id="copy-install" type="button" disabled>Copy command</button></div><pre><code id="install-command">Waiting for a published GitHub release…</code></pre><p id="install-note">The installer adds TcpTunnel to the system PATH. Open a new terminal before running it.</p><span id="install-copy-status" role="status" aria-live="polite"></span></div></div>
     <div class="download-footnote"><p>Build artifacts on GitHub Actions require a GitHub account. .NET 11 is currently a release candidate.</p><a href="https://github.com/tedd/Tedd.TcpTunnel/releases">All releases <span aria-hidden="true">↗</span></a></div>
   </section>
   <section class="wrap operational"><h2>Updates and security.</h2><div><p><strong>GitHub updates.</strong> GitHub version checks offer an update. Downloads are verified against release checksums. Portable updates keep the previous binary; installed copies use an installer.</p><p><strong>Transport security.</strong> TcpTunnel forwards and compresses traffic. It does not encrypt or authenticate the tunnel. Use a trusted network or an encrypted transport such as a VPN.</p></div></section>

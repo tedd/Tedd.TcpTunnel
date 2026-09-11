@@ -1,0 +1,268 @@
+.configure-heading {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 80px;
+  align-items: end;
+  margin-bottom: 34px;
+}
+
+.configure-heading .eyebrow {
+  font-size: .7rem;
+  margin-bottom: 20px;
+}
+
+.configure-heading h2 {
+  margin-bottom: 0;
+}
+
+.configure-heading > p {
+  color: var(--muted);
+  line-height: 1.75;
+  font-size: .98rem;
+  max-width: 520px;
+  margin-bottom: 5px;
+}
+
+.builder-layout {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 38px;
+  align-items: start;
+}
+
+.builder-controls {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 9px;
+  padding: 22px;
+}
+
+.choice-group {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.choice-group legend,
+.builder-controls label,
+.install-fields label {
+  font: 500 .68rem/1.5 var(--mono);
+  letter-spacing: .045em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.choice-row button {
+  font-size: .79rem;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 4px;
+  color: var(--muted);
+}
+
+.choice-row button[aria-pressed=true] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.choice-row button:disabled {
+  cursor: not-allowed;
+  opacity: .42;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 13px;
+  margin: 22px 0;
+}
+
+.field-grid label,
+.install-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.field-grid input,
+.field-grid select,
+.install-fields select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cbd5e3;
+  background: #fff;
+  color: var(--ink);
+  border-radius: 4px;
+  padding: 10px 11px;
+  font: 500 .86rem/1.3 'DM Sans', sans-serif;
+}
+
+.field-grid input:focus,
+.field-grid select:focus,
+.install-fields select:focus {
+  outline: 3px solid #b7caf9;
+  outline-offset: 1px;
+  border-color: var(--blue);
+}
+
+.field-grid input:invalid {
+  border-color: #b04a37;
+}
+
+.field-grid .check-field {
+  align-self: end;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  text-transform: none;
+  font-family: 'DM Sans', sans-serif;
+  font-size: .82rem;
+  letter-spacing: 0;
+}
+
+.check-field input {
+  width: auto;
+}
+
+.check-field:has(input:disabled) {
+  opacity: .5;
+}
+
+.shell-choice {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.builder-layout .command-panel {
+  position: sticky;
+  top: 24px;
+}
+
+.builder-layout pre {
+  min-height: 190px;
+}
+
+.command-top button:disabled {
+  color: #8994a4;
+  cursor: not-allowed;
+}
+
+.install-builder {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 38px;
+  margin-top: 30px;
+  padding: 28px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.install-controls h3 {
+  margin-bottom: 8px;
+}
+
+.install-controls > div > p {
+  color: var(--muted);
+  font-size: .87rem;
+  line-height: 1.65;
+  max-width: 430px;
+}
+
+.install-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.install-command-panel pre {
+  font-size: .72rem;
+  line-height: 1.8;
+  min-height: 145px;
+}
+
+.install-command-panel #install-note {
+  font-size: .8rem;
+  line-height: 1.6;
+  margin: 12px 22px 20px;
+  color: var(--muted);
+}
+
+.install-command-panel #install-copy-status {
+  display: block;
+  font-size: .8rem;
+  margin: 0 22px 15px;
+  color: var(--blue);
+}
+
+.install-command-panel #install-copy-status:empty {
+  display: none;
+}
+
+@media (max-width: 1050px) {
+  .configure-heading,
+  .builder-layout,
+  .install-builder {
+    gap: 36px;
+  }
+}
+
+@media (max-width: 760px) {
+  .configure-heading,
+  .builder-layout,
+  .install-builder {
+    grid-template-columns: 1fr;
+  }
+
+  .configure-heading {
+    gap: 12px;
+  }
+
+  .features > *,
+  .feature-list article > div,
+  .configure-heading > *,
+  .builder-layout > *,
+  .install-builder > * {
+    min-width: 0;
+  }
+
+  .section-intro h2 br {
+    display: block;
+  }
+
+  .builder-layout .command-panel {
+    position: static;
+  }
+
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .install-builder {
+    padding: 20px;
+  }
+
+  .install-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .choice-row button {
+    flex: 1;
+  }
+
+  .builder-layout pre {
+    min-height: 0;
+  }
+}
