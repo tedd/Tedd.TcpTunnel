@@ -6,15 +6,21 @@ namespace Tedd.TcpTunnel;
 
 internal sealed class TunnelConnection(Socket local, Socket remote, ForwardOptions options, PcapWriter? capture, TunnelSession? session)
 {
+    private bool _receivedFin;
     private long _lastActivity = Environment.TickCount64;
 
     public async Task RunAsync(CancellationToken token)
     {
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(token);
-        using var registration = stop.Token.Register(() => { local.Dispose(); remote.Dispose(); });
         var framed = options.Mode is TunnelMode.Client or TunnelMode.Server;
         var tunnel = options.Mode == TunnelMode.Server ? local : remote;
         var plain = options.Mode == TunnelMode.Server ? remote : local;
+        using var registration = stop.Token.Register(() =>
+        {
+            // Only an authenticated FIN permits an ordinary application EOF, including on timeout.
+            if (session?.Receive is not null && !Volatile.Read(ref _receivedFin)) SocketTuning.ResetOnClose(plain);
+            local.Dispose(); remote.Dispose();
+        });
         var peerFrame = session?.PeerFrame ?? options.BufferSize;
         var sync = options.Execution == ExecutionMode.Dedicated;
         Task Start(Func<Task> pump) => sync ? Task.Factory.StartNew(() => pump().GetAwaiter().GetResult(),
@@ -22,7 +28,11 @@ internal sealed class TunnelConnection(Socket local, Socket remote, ForwardOptio
         async Task Guard(Func<Task> pump)
         {
             try { await pump().ConfigureAwait(false); }
-            catch { await stop.CancelAsync().ConfigureAwait(false); throw; }
+            catch
+            {
+                await stop.CancelAsync().ConfigureAwait(false);
+                throw;
+            }
         }
         var watchdog = WatchIdleAsync(stop);
         try
@@ -141,7 +151,12 @@ internal sealed class TunnelConnection(Socket local, Socket remote, ForwardOptio
                     await reader.ReadExactlyAsync(encrypted.AsMemory(0, wire + FrameCipher.TagSize), token).ConfigureAwait(false);
                     cipher.Decrypt(header, encrypted.AsSpan(0, wire + FrameCipher.TagSize), encoded.AsSpan(0, wire));
                 }
-                if (type == FrameType.Fin) { SocketTuning.ShutdownSend(destination); return; }
+                if (type == FrameType.Fin)
+                {
+                    Volatile.Write(ref _receivedFin, true);
+                    SocketTuning.ShutdownSend(destination);
+                    return;
+                }
                 if (type == FrameType.Noop) continue;
                 if (cipher is null) await reader.ReadExactlyAsync(encoded.AsMemory(0, wire), token).ConfigureAwait(false);
                 codec.Decode(encoded, wire, decoded.AsSpan(0, raw));

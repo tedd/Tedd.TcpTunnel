@@ -97,6 +97,8 @@ public sealed class Listener
             catch (Exception ex) when (token.IsCancellationRequested && ex is OperationCanceledException or SocketException or ObjectDisposedException or IOException) { }
             catch (Exception ex)
             {
+                if (_options.Mode == TunnelMode.Client && _options.Encryption.Algorithm != EncryptionAlgorithm.None)
+                    SocketTuning.ResetOnClose(accepted);
                 Log("error", "Connection terminated.", ex);
                 if (socksReady)
                 {

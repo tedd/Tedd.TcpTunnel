@@ -26,6 +26,21 @@ public sealed class EncryptionProtocolTests
         tag[0] ^= 1;
         Assert.ThrowsAny<CryptographicException>(() => rejected.Decrypt(header, tag, []));
     }
+    [Fact]
+    public async Task EncryptedIdleTimeoutCannotImitateAnAuthenticatedFin()
+    {
+        await using var rig = new TunnelRig();
+        using var target = new TcpListener(IPAddress.Loopback, 0); target.Start();
+        var key = EncryptionOptions.GenerateKey();
+        var endpoint = await rig.AddAsync(new() { Mode = TunnelMode.Server, ListenPort = 0,
+            RemotePort = ((IPEndPoint)target.LocalEndpoint).Port, HeartbeatMilliseconds = 0, IdleTimeoutMilliseconds = 100,
+            Encryption = EncryptionTests.Server(EncryptionAlgorithm.AesGcm, key) });
+        using var peer = new TcpClient(); await peer.ConnectAsync(endpoint, rig.Token);
+        using var session = await TunnelHandshake.NegotiateAsync(peer.Client, new() { Mode = TunnelMode.Client,
+            Encryption = EncryptionTests.Client(EncryptionAlgorithm.AesGcm, key) }, rig.Token);
+        using var destination = await target.AcceptTcpClientAsync(rig.Token);
+        await Assert.ThrowsAsync<IOException>(async () => { _ = await destination.GetStream().ReadAsync(new byte[1], rig.Token); });
+    }
     // Independent vectors: Python cryptography AEAD with HMAC-SHA256 HKDF expansion.
     [Theory]
     [InlineData(EncryptionAlgorithm.ChaCha20Poly1305, "ee4b60a2f58aa65434414d7e92448218e9b555", "e69b12e86c466dd56d609f7104b23fbd9a23b8")]
@@ -122,11 +137,35 @@ public sealed class EncryptionProtocolTests
         await stream.WriteAsync(header, rig.Token);
         await stream.WriteAsync(attack == 3 ? encrypted.AsMemory(0, encrypted.Length - 1) : encrypted, rig.Token);
         if (attack == 3) attacker.Client.Shutdown(SocketShutdown.Send);
-        Assert.Equal(0, await destination.GetStream().ReadAsync(new byte[1], rig.Token));
+        await Assert.ThrowsAsync<IOException>(async () => { _ = await destination.GetStream().ReadAsync(new byte[1], rig.Token); });
         var error = await rig.FirstError.Task.WaitAsync(rig.Token);
         Assert.True(attack == 3 ? error.Exception is EndOfStreamException : error.Exception is CryptographicException, error.Exception?.ToString());
     }
 
+    [Fact]
+    public async Task MissingAuthenticatedFinResetsAnApplicationAfterValidData()
+    {
+        await using var rig = new TunnelRig();
+        using var target = new TcpListener(IPAddress.Loopback, 0); target.Start();
+        var key = EncryptionOptions.GenerateKey();
+        var endpoint = await rig.AddAsync(new() { Mode = TunnelMode.Server, ListenPort = 0,
+            RemotePort = ((IPEndPoint)target.LocalEndpoint).Port, HeartbeatMilliseconds = 0,
+            Encryption = EncryptionTests.Server(EncryptionAlgorithm.AesGcm, key) });
+        using var peer = new TcpClient(); await peer.ConnectAsync(endpoint, rig.Token);
+        using var session = await TunnelHandshake.NegotiateAsync(peer.Client, new() { Mode = TunnelMode.Client,
+            Encryption = EncryptionTests.Client(EncryptionAlgorithm.AesGcm, key) }, rig.Token);
+        using var destination = await target.AcceptTcpClientAsync(rig.Token);
+        var header = new byte[Protocol.HeaderSize];
+        var prefix = "authenticated prefix"u8.ToArray();
+        Protocol.WriteHeader(header, FrameType.Data, prefix.Length, prefix.Length);
+        var record = new byte[prefix.Length + FrameCipher.TagSize]; session.Send!.Encrypt(header, prefix, record);
+        var peerStream = peer.GetStream(); await peerStream.WriteAsync(header, rig.Token); await peerStream.WriteAsync(record, rig.Token);
+        var application = destination.GetStream(); var output = new byte[prefix.Length];
+        await application.ReadExactlyAsync(output, rig.Token); Assert.Equal(prefix, output);
+        peer.Client.Shutdown(SocketShutdown.Send);
+        await Assert.ThrowsAsync<IOException>(async () => { _ = await application.ReadAsync(new byte[1], rig.Token); });
+        Assert.IsType<EndOfStreamException>((await rig.FirstError.Task.WaitAsync(rig.Token)).Exception);
+    }
     [Fact]
     public async Task RestartRevokesOneClientAndClosesItsExistingSession()
     {

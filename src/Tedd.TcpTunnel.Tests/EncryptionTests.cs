@@ -199,7 +199,7 @@ public sealed class EncryptionTests
         var endpoint = await rig.AddAsync(new() { Mode = TunnelMode.Client, ListenPort = 0, RemotePort = server.Port,
             Encryption = Client(EncryptionAlgorithm.AesGcm, revoked ? key : EncryptionOptions.GenerateKey()) });
         using var app = new TcpClient(); await app.ConnectAsync(endpoint, rig.Token);
-        Assert.Equal(0, await app.GetStream().ReadAsync(new byte[1], rig.Token));
+        await Assert.ThrowsAsync<IOException>(async () => { _ = await app.GetStream().ReadAsync(new byte[1], rig.Token); });
         Assert.False(destination.Pending());
         Assert.Contains(rig.Errors, e => e.Exception is CryptographicException);
     }

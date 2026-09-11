@@ -42,7 +42,7 @@ public sealed class StreamAndSocketTests
             options.LinuxCongestionControl = "notavailable"; SocketTuning.Apply(client, options, warnings.Add);
             Assert.NotEmpty(warnings);
         }
-        SocketTuning.ShutdownSend(client); client.Dispose(); SocketTuning.ShutdownSend(client);
+        SocketTuning.ShutdownSend(client); client.Dispose(); SocketTuning.ShutdownSend(client); SocketTuning.ResetOnClose(client);
     }
     [Fact]
     public async Task Ipv6ListenerAndReuseAddressAreSupported()

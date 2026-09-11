@@ -64,6 +64,12 @@ internal static partial class SocketTuning
     [LibraryImport("libc", EntryPoint = "setsockopt", SetLastError = true)]
     private static partial int SetSocketOptionBytes(SafeSocketHandle socket, int level, int name, byte[] value, uint length);
 
+    public static void ResetOnClose(Socket socket)
+    {
+        try { socket.LingerState = new LingerOption(true, 0); }
+        catch (Exception ex) when (ex is SocketException or ObjectDisposedException) { }
+    }
+
     public static void ShutdownSend(Socket socket)
     {
         try { socket.Shutdown(SocketShutdown.Send); }

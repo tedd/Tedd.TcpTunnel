@@ -349,7 +349,8 @@ before the server opens a destination connection. Fresh random values from both 
 for each direction and connection. Each direction refreshes its record key every 1024 frames.
 Unique sequence-based nonces and authenticated frame headers detect modification, replay,
 reordering, and forged heartbeats or half-closes. Authentication precedes decompression and
-application delivery. Every frame, including a heartbeat or half-close, adds a 16-byte tag.
+application delivery. Failed authentication or a missing authenticated half-close resets the
+application connection. Every frame, including a heartbeat or half-close, adds a 16-byte tag.
 Unencrypted pairs use TTN2 and remain compatible with TTN2 peers.
 
 The algorithms are standardized; TTN3 is a project-specific protocol without an independent
