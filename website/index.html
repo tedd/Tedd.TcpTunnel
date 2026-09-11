@@ -15,7 +15,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="wrap topbar">
   <a href="#" class="brand" aria-label="Tedd TcpTunnel home"><span class="brand-icon" aria-hidden="true">↔</span> Tedd<span class="brand-dot">.</span>TcpTunnel</a>
-  <nav aria-label="Main navigation"><a href="#how">How it works</a><a href="#configure">Configure</a><a href="https://github.com/tedd/Tedd.TcpTunnel">GitHub <span aria-hidden="true">↗</span></a></nav>
+  <nav aria-label="Main navigation"><a href="#how">How it works</a><a href="#configure">Configure</a><a href="#benchmarks">Benchmarks</a><a href="https://github.com/tedd/Tedd.TcpTunnel">GitHub <span aria-hidden="true">↗</span></a></nav>
   <a class="button small" href="#download">Download <span aria-hidden="true">↓</span></a>
 </header>
 <main id="main">
@@ -77,6 +77,16 @@
     <div class="install-builder"><div class="install-controls"><div><h3>Download and install</h3><p>Generate one command for a published release. Windows uses the EXE installer; Linux installs the portable package for the current user.</p></div><div class="install-fields"><label>Platform<select id="install-platform"><option value="windows">Windows</option><option value="linux">Linux</option></select></label><label>Architecture<select id="install-architecture"><option value="x64">x64</option><option value="arm64">ARM64</option></select></label></div><fieldset class="choice-group"><legend>Shell</legend><div class="choice-row"><button type="button" data-install-shell="powershell" aria-pressed="true">PowerShell</button><button type="button" data-install-shell="cmd" aria-pressed="false">Command Prompt</button><button type="button" data-install-shell="bash" aria-pressed="false">Bash</button></div></fieldset></div><div class="command-panel install-command-panel"><div class="command-top"><span id="install-command-label">WINDOWS · X64 · POWERSHELL</span><button id="copy-install" type="button" disabled>Copy command</button></div><pre><code id="install-command">Waiting for a published GitHub release…</code></pre><p id="install-note">The installer adds TcpTunnel to the system PATH. Open a new terminal before running it.</p><span id="install-copy-status" role="status" aria-live="polite"></span></div></div>
     <div class="download-footnote"><p>Build artifacts on GitHub Actions require a GitHub account. .NET 11 is currently a release candidate.</p><a href="https://github.com/tedd/Tedd.TcpTunnel/releases">All releases <span aria-hidden="true">↗</span></a></div>
   </section>
+  <section id="benchmarks" class="benchmark-section"><div class="wrap">
+    <div class="benchmark-heading"><div><p class="eyebrow">MEASURED ON WINDOWS</p><h2>End-to-end<br>throughput.</h2></div><p>Real loopback transfers pass through a TcpTunnel client and server into a validating destination. Results show the best application-data rate from three measured runs after warm-up. <a href="https://github.com/tedd/Tedd.TcpTunnel/blob/main/benchmarks.md">Methodology and reproduction command <span aria-hidden="true">↗</span></a></p></div>
+    <p id="benchmark-status" class="benchmark-status" role="status">Loading benchmark results…</p>
+    <div class="chart-grid">
+      <article class="chart-card" aria-labelledby="algorithm-chart-title"><div class="chart-title"><p class="eyebrow">FASTEST PROFILE</p><h3 id="algorithm-chart-title">Algorithms compared</h3></div><div id="algorithm-chart" class="benchmark-chart"></div></article>
+      <article class="chart-card" aria-labelledby="brotli-chart-title"><div class="chart-title"><p class="eyebrow">REPEATED FILE</p><h3 id="brotli-chart-title">Brotli history comparison</h3></div><div id="brotli-chart" class="benchmark-chart"></div></article>
+    </div>
+    <div class="benchmark-table-wrap"><table><caption>All measured compression profiles</caption><thead><tr><th scope="col">Profile</th><th scope="col">Settings</th><th scope="col">Input</th><th scope="col">Best MiB/s</th><th scope="col">Median MiB/s</th></tr></thead><tbody id="benchmark-table-body"></tbody></table></div>
+    <noscript><p>JavaScript is required for the charts. The complete results remain available in <a href="https://github.com/tedd/Tedd.TcpTunnel/blob/main/benchmarks.md">benchmarks.md</a>.</p></noscript>
+  </div></section>
   <section class="wrap operational"><h2>Updates and security.</h2><div><p><strong>GitHub updates.</strong> GitHub version checks offer an update. Downloads are verified against release checksums. Portable updates keep the previous binary; installed copies use an installer.</p><p><strong>Transport security.</strong> TcpTunnel forwards and compresses traffic. It does not encrypt or authenticate the tunnel. Use a trusted network or an encrypted transport such as a VPN.</p></div></section>
 </main>
 <footer class="wrap"><a class="brand" href="#">Tedd<span class="brand-dot">.</span>TcpTunnel</a><span>Open source. LGPL-2.1 licensed.</span><a href="https://github.com/tedd/Tedd.TcpTunnel/tree/deploy">Source &amp; documentation <span aria-hidden="true">↗</span></a></footer>

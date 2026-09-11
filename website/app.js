@@ -240,6 +240,79 @@ async function loadDownloads() {
   }
 }
 
+function renderBenchmarkChart(container, results) {
+  const maximum = Math.max(...results.map(result => result.bestMiBPerSecond));
+  const rows = results.map(result => {
+    const row = document.createElement('div');
+    row.className = 'benchmark-row';
+
+    const label = document.createElement('span');
+    label.className = 'benchmark-label';
+    label.textContent = result.name;
+
+    const track = document.createElement('span');
+    track.className = 'benchmark-track';
+    const bar = document.createElement('i');
+    const percentage = maximum > 0 ? Math.max(1, Math.min(100, result.bestMiBPerSecond / maximum * 100)) : 0;
+    bar.style.width = `${percentage}%`;
+    track.append(bar);
+
+    const value = document.createElement('strong');
+    value.textContent = `${result.bestMiBPerSecond.toFixed(1)} MiB/s`;
+    row.append(label, track, value);
+    return row;
+  });
+  container.replaceChildren(...rows);
+}
+
+function validBenchmarkResult(result) {
+  return result && typeof result.name === 'string' && typeof result.codec === 'string'
+    && typeof result.settings === 'string' && typeof result.dataSet === 'string'
+    && Number.isFinite(result.bestMiBPerSecond) && result.bestMiBPerSecond > 0
+    && Number.isFinite(result.medianMiBPerSecond) && result.medianMiBPerSecond > 0;
+}
+
+async function loadBenchmarks() {
+  const status = document.querySelector('#benchmark-status');
+  try {
+    const response = await fetch('benchmarks.json');
+    if (!response.ok) throw new Error('Benchmark data unavailable');
+    const data = await response.json();
+    const results = Array.isArray(data.results) ? data.results.filter(validBenchmarkResult) : [];
+    if (!results.length) throw new Error('Benchmark data invalid');
+
+    const fastestByCodec = [...results.reduce((profiles, result) => {
+      const current = profiles.get(result.codec);
+      if (!current || result.bestMiBPerSecond > current.bestMiBPerSecond) profiles.set(result.codec, result);
+      return profiles;
+    }, new Map()).values()].sort((left, right) => right.bestMiBPerSecond - left.bestMiBPerSecond);
+    const brotli = results.filter(result => result.codec === 'Brotli');
+    renderBenchmarkChart(document.querySelector('#algorithm-chart'), fastestByCodec);
+    renderBenchmarkChart(document.querySelector('#brotli-chart'), brotli);
+
+    const ranked = [...results].sort((left, right) => right.bestMiBPerSecond - left.bestMiBPerSecond);
+    const rows = ranked.map(result => {
+      const row = document.createElement('tr');
+      for (const value of [result.name, result.settings, result.dataSet, result.bestMiBPerSecond.toFixed(1), result.medianMiBPerSecond.toFixed(1)]) {
+        const cell = document.createElement('td');
+        cell.textContent = value;
+        row.append(cell);
+      }
+      return row;
+    });
+    document.querySelector('#benchmark-table-body').replaceChildren(...rows);
+
+    const measured = new Date(data.generatedAtUtc);
+    const date = Number.isNaN(measured.valueOf()) ? 'Recorded run' : measured.toLocaleDateString(undefined, { dateStyle: 'medium' });
+    const machine = data.machine ?? {};
+    const iterations = data.methodology?.iterations;
+    status.textContent = `${date} · ${machine.Processor ?? 'Windows'} · ${machine.Framework ?? '.NET'} · ${iterations ?? 3} measured runs per profile`;
+  } catch {
+    status.textContent = 'Benchmark data is temporarily unavailable. See benchmarks.md for the complete recorded results.';
+  }
+}
+
 updateTunnelCommand();
 updateInstallCommand();
 loadDownloads();
+loadBenchmarks();

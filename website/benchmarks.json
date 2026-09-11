@@ -1,0 +1,277 @@
+{
+  "generatedAtUtc": "2026-09-11T18:05:38.7965702+00:00",
+  "machine": {
+    "OperatingSystem": "Microsoft Windows 10.0.26200",
+    "Architecture": "X64",
+    "Processor": "AMD64 Family 25 Model 33 Stepping 0, AuthenticAMD",
+    "LogicalProcessors": 32,
+    "Framework": ".NET 11.0.0-rc.1.26425.128"
+  },
+  "methodology": {
+    "transport": "Application \u2192 Client \u2192 Server \u2192 destination sink over IPv4 loopback",
+    "execution": "Async",
+    "bufferBytes": 1048576,
+    "batchMilliseconds": 0,
+    "warmups": 1,
+    "iterations": 3,
+    "targetMiB": 64,
+    "reportedValue": "Best observed application-data throughput; median retained for variability"
+  },
+  "files": [
+    {
+      "name": "mshtml.dll",
+      "bytes": 24023040,
+      "sha256": "4093242363e953e6172b87f5b66ec42deaf63bb1fb12a2a48590c08f8fb6ec06"
+    },
+    {
+      "name": "Windows.UI.Xaml.dll",
+      "bytes": 17866752,
+      "sha256": "b0a1d10f9766565658bf210ee521861dfa16fb22b331925fc1f039ef626ad2cb"
+    },
+    {
+      "name": "shell32.dll",
+      "bytes": 7947424,
+      "sha256": "a7779772d197cd94a2309d4739b85587d7e86a20e406baec4932307d71bbc2d2"
+    }
+  ],
+  "results": [
+    {
+      "name": "None",
+      "codec": "None",
+      "settings": "uncompressed framing",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 141.3,
+      "medianMiBPerSecond": 92.6,
+      "measurementsMiBPerSecond": [
+        85.1,
+        92.6,
+        141.3
+      ]
+    },
+    {
+      "name": "LZ4 fastest",
+      "codec": "Lz4",
+      "settings": "level=Fastest",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 106,
+      "medianMiBPerSecond": 100.9,
+      "measurementsMiBPerSecond": [
+        96.1,
+        100.9,
+        106
+      ]
+    },
+    {
+      "name": "LZ4 HC",
+      "codec": "Lz4",
+      "settings": "level=SmallestSize",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 8.1,
+      "medianMiBPerSecond": 8.1,
+      "measurementsMiBPerSecond": [
+        8,
+        8.1,
+        8.1
+      ]
+    },
+    {
+      "name": "Brotli q1",
+      "codec": "Brotli",
+      "settings": "quality=1, window=22, history=false",
+      "dataSet": "Repeated mshtml.dll",
+      "transferredBytes": 72069120,
+      "bestMiBPerSecond": 91.2,
+      "medianMiBPerSecond": 81.1,
+      "measurementsMiBPerSecond": [
+        77.7,
+        81.1,
+        91.2
+      ]
+    },
+    {
+      "name": "Brotli q4",
+      "codec": "Brotli",
+      "settings": "quality=4, window=22, history=false",
+      "dataSet": "Repeated mshtml.dll",
+      "transferredBytes": 72069120,
+      "bestMiBPerSecond": 40.4,
+      "medianMiBPerSecond": 35.5,
+      "measurementsMiBPerSecond": [
+        34,
+        35.5,
+        40.4
+      ]
+    },
+    {
+      "name": "Brotli q9",
+      "codec": "Brotli",
+      "settings": "quality=9, window=22, history=false",
+      "dataSet": "Repeated mshtml.dll",
+      "transferredBytes": 72069120,
+      "bestMiBPerSecond": 9.9,
+      "medianMiBPerSecond": 9.9,
+      "measurementsMiBPerSecond": [
+        9.1,
+        9.9,
+        9.9
+      ]
+    },
+    {
+      "name": "Brotli q4 \u002B history",
+      "codec": "Brotli",
+      "settings": "quality=4, window=22, history=true",
+      "dataSet": "Repeated mshtml.dll",
+      "transferredBytes": 72069120,
+      "bestMiBPerSecond": 39.2,
+      "medianMiBPerSecond": 38.5,
+      "measurementsMiBPerSecond": [
+        38.2,
+        38.5,
+        39.2
+      ]
+    },
+    {
+      "name": "Brotli q9 \u002B history",
+      "codec": "Brotli",
+      "settings": "quality=9, window=22, history=true",
+      "dataSet": "Repeated mshtml.dll",
+      "transferredBytes": 72069120,
+      "bestMiBPerSecond": 5.1,
+      "medianMiBPerSecond": 5,
+      "measurementsMiBPerSecond": [
+        4.2,
+        5,
+        5.1
+      ]
+    },
+    {
+      "name": "Zstandard -5",
+      "codec": "Zstandard",
+      "settings": "level=-5",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 145.4,
+      "medianMiBPerSecond": 129.9,
+      "measurementsMiBPerSecond": [
+        119.9,
+        129.9,
+        145.4
+      ]
+    },
+    {
+      "name": "Zstandard 3",
+      "codec": "Zstandard",
+      "settings": "level=3",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 74.8,
+      "medianMiBPerSecond": 72.1,
+      "measurementsMiBPerSecond": [
+        68.8,
+        72.1,
+        74.8
+      ]
+    },
+    {
+      "name": "Zstandard 9",
+      "codec": "Zstandard",
+      "settings": "level=9",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 41,
+      "medianMiBPerSecond": 40.3,
+      "measurementsMiBPerSecond": [
+        39.7,
+        40.3,
+        41
+      ]
+    },
+    {
+      "name": "Deflate fastest",
+      "codec": "Deflate",
+      "settings": "level=Fastest",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 108.1,
+      "medianMiBPerSecond": 107.2,
+      "measurementsMiBPerSecond": [
+        99.1,
+        107.2,
+        108.1
+      ]
+    },
+    {
+      "name": "Deflate optimal",
+      "codec": "Deflate",
+      "settings": "level=Optimal",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 37.3,
+      "medianMiBPerSecond": 35.7,
+      "measurementsMiBPerSecond": [
+        35.1,
+        35.7,
+        37.3
+      ]
+    },
+    {
+      "name": "GZip fastest",
+      "codec": "GZip",
+      "settings": "level=Fastest",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 88.9,
+      "medianMiBPerSecond": 85.7,
+      "measurementsMiBPerSecond": [
+        84.1,
+        85.7,
+        88.9
+      ]
+    },
+    {
+      "name": "GZip optimal",
+      "codec": "GZip",
+      "settings": "level=Optimal",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 36.7,
+      "medianMiBPerSecond": 36.5,
+      "measurementsMiBPerSecond": [
+        35.7,
+        36.5,
+        36.7
+      ]
+    },
+    {
+      "name": "ZLib fastest",
+      "codec": "ZLib",
+      "settings": "level=Fastest",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 73.1,
+      "medianMiBPerSecond": 72.2,
+      "measurementsMiBPerSecond": [
+        70.3,
+        72.2,
+        73.1
+      ]
+    },
+    {
+      "name": "ZLib optimal",
+      "codec": "ZLib",
+      "settings": "level=Optimal",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 37.7,
+      "medianMiBPerSecond": 36.6,
+      "measurementsMiBPerSecond": [
+        36.3,
+        36.6,
+        37.7
+      ]
+    }
+  ]
+}

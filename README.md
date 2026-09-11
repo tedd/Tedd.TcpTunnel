@@ -415,6 +415,20 @@ dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --filter '*Comp
 dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --filter '*TunnelBenchmark*' --job short
 ```
 
+The end-to-end throughput suite starts a destination sink plus a TcpTunnel client and server,
+then validates and times complete transfers across the loopback path. On Windows it selects
+large DLLs from `System32`; Brotli profiles repeat the largest file on one connection to compare
+history reuse against the same history-disabled sequence.
+
+```powershell
+dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --throughput --target-mib 64 --warmups 1 --iterations 3 --output benchmarks.md --json-output website/benchmarks.json
+```
+
+The command records the best and median application-data throughput for 17 codec profiles in
+[benchmarks.md](benchmarks.md) and the website data file. Supply repeated `--file PATH` options
+to replace the Windows corpus. The manually dispatched benchmark workflow can run either this
+suite or the BenchmarkDotNet microbenchmarks.
+
 Buffers are pooled. Hot paths use spans/memory, `ValueTask`, and runtime/library vectorized
 copy and compression implementations. Connection setup, async scheduling, expired timers,
 some codecs, and logging still allocate. Zero allocation for the complete service and
