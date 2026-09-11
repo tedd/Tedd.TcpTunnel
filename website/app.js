@@ -31,6 +31,11 @@ function selectButtons(selector, selected) {
   }
 }
 
+function setChildren(container, children) {
+  while (container.firstChild) container.removeChild(container.firstChild);
+  for (const child of children) container.appendChild(child);
+}
+
 function applyRole(role) {
   tunnelState.role = role;
   const values = roleDefaults[role];
@@ -94,11 +99,24 @@ function flattenedCommand(command) {
 }
 
 async function copyText(text, status, flatten = false) {
+  const value = flatten ? flattenedCommand(text) : text;
   try {
-    await navigator.clipboard.writeText(flatten ? flattenedCommand(text) : text);
+    if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') throw new Error('Clipboard API unavailable');
+    await navigator.clipboard.writeText(value);
     status.textContent = 'Command copied.';
   } catch {
-    status.textContent = 'Select the command text to copy it manually.';
+    const input = document.createElement('textarea');
+    input.value = value;
+    input.setAttribute('readonly', '');
+    input.style.position = 'fixed';
+    input.style.opacity = '0';
+    document.body.appendChild(input);
+    input.select();
+    let copied = false;
+    try { copied = document.execCommand('copy'); }
+    catch { copied = false; }
+    input.remove();
+    status.textContent = copied ? 'Command copied.' : 'Select the command text to copy it manually.';
   }
 }
 
@@ -203,8 +221,10 @@ installCopy.addEventListener('click', () => copyText(installOutput.textContent, 
 
 async function loadDownloads() {
   const status = document.querySelector('#release-status');
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timeout = controller ? setTimeout(() => controller.abort(), 8000) : null;
   try {
-    const response = await fetch(`https://api.github.com/repos/${repository}/releases?per_page=10`, { signal: AbortSignal.timeout(8000) });
+    const response = await fetch(`https://api.github.com/repos/${repository}/releases?per_page=10`, controller ? { signal: controller.signal } : {});
     if (!response.ok) throw new Error('GitHub unavailable');
     const releases = await response.json();
     const release = releases.find(item => !item.draft && Array.isArray(item.assets) && item.assets.some(asset => /^tcptunnel-.*-win-x64\.zip$/.test(asset.name)));
@@ -231,12 +251,14 @@ async function loadDownloads() {
           links.push(link);
         }
       }
-      if (links.length) container.replaceChildren(...links);
+      if (links.length) setChildren(container, links);
     }
     updateInstallCommand();
   } catch {
     status.textContent = 'Browse builds on GitHub. Release information is temporarily unavailable.';
     updateInstallCommand();
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
 }
 
@@ -262,7 +284,7 @@ function renderBenchmarkChart(container, results) {
     row.append(label, track, value);
     return row;
   });
-  container.replaceChildren(...rows);
+  setChildren(container, rows);
 }
 
 function validBenchmarkResult(result) {
@@ -300,13 +322,13 @@ async function loadBenchmarks() {
       }
       return row;
     });
-    document.querySelector('#benchmark-table-body').replaceChildren(...rows);
+    setChildren(document.querySelector('#benchmark-table-body'), rows);
 
     const measured = new Date(data.generatedAtUtc);
     const date = Number.isNaN(measured.valueOf()) ? 'Recorded run' : measured.toLocaleDateString(undefined, { dateStyle: 'medium' });
-    const machine = data.machine ?? {};
-    const iterations = data.methodology?.iterations;
-    status.textContent = `${date} · ${machine.Processor ?? 'Windows'} · ${machine.Framework ?? '.NET'} · ${iterations ?? 3} measured runs per profile`;
+    const machine = data.machine || {};
+    const iterations = data.methodology && data.methodology.iterations;
+    status.textContent = `${date} · ${machine.Processor || 'Windows'} · ${machine.Framework || '.NET'} · ${iterations || 3} measured runs per profile`;
   } catch {
     status.textContent = 'Benchmark data is temporarily unavailable. See benchmarks.md for the complete recorded results.';
   }
