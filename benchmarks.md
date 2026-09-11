@@ -8,8 +8,8 @@ These loopback results measure the complete Application → Client → Server �
 
 | Question | Recorded evidence | Interpretation |
 | --- | --- | --- |
-| How does the Zstandard -5 peak compare to plaintext? | 158.0 vs 197.5 MiB/s (-20.0%) | Peak is one observation per profile; compare the median and representative workloads before choosing settings. |
-| Does the median show the same ordering? | 137.4 vs 165.3 MiB/s (-16.9%) | These are the measured medians. Tunnel-wire bytes are not counted, so differences cannot be attributed solely to compression. |
+| How does Zstandard -5 compare with uncompressed? | Median 137.4 vs 165.3 MiB/s (-16.9%) | This run's median determines the displayed rank; it does not establish a universal ordering. |
+| What does peak add? | Peak 158.0 vs 197.5 MiB/s (-20.0%) | Peak is one observation per profile and shows a transient ceiling rather than expected throughput. |
 | Why can compression help without a bandwidth cap? | Loopback has no external link cap. | Bytes still incur framing, managed/native copies, TCP-buffer work, and scheduling. A fast codec can reduce that work enough to offset its CPU cost on compressible input. |
 | Which value should be compared? | Median is the primary result; peak is retained separately. | Median is less sensitive to scheduler and cache outliers. Neither value predicts a real network without representative data and conditions. |
 

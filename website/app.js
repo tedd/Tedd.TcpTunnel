@@ -294,14 +294,14 @@ function percentageDifference(value, baseline) {
 function renderBenchmarkInterpretation(container, zstandardFast, uncompressed) {
   const values = [
     [
-      'Why does Zstandard -5 rank first?',
+      'How does Zstandard -5 compare with uncompressed?',
       `Median ${zstandardFast.medianMiBPerSecond.toFixed(1)} vs ${uncompressed.medianMiBPerSecond.toFixed(1)} MiB/s (${percentageDifference(zstandardFast.medianMiBPerSecond, uncompressed.medianMiBPerSecond)})`,
-      'The input is compressible and loopback processing is not free, but wire bytes are not counted, so the difference cannot be decomposed into compression ratio and processing cost.'
+      "This run's median determines the displayed rank; it does not establish a universal ordering."
     ],
     [
-      'Does peak show the same ordering?',
+      'What does peak add?',
       `Peak ${zstandardFast.bestMiBPerSecond.toFixed(1)} vs ${uncompressed.bestMiBPerSecond.toFixed(1)} MiB/s (${percentageDifference(zstandardFast.bestMiBPerSecond, uncompressed.bestMiBPerSecond)})`,
-      'No. Peak is one observation per profile; the reversed order demonstrates why median is the primary comparison.'
+      'Peak is one observation per profile and shows a transient ceiling rather than expected throughput.'
     ],
     [
       'Why can compression help on loopback?',
