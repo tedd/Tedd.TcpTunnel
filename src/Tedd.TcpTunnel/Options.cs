@@ -41,6 +41,7 @@ public sealed class ForwardOptions
     public int BrotliWindow { get; set; } = 20;
     public int ZstandardLevel { get; set; } = 3;
     public bool CompressionHistory { get; set; }
+    public EncryptionOptions Encryption { get; set; } = new();
     public int BufferSize { get; set; } = 65536;
     public int BatchMilliseconds { get; set; }
     public int HeartbeatMilliseconds { get; set; } = 30000;
@@ -79,8 +80,8 @@ public sealed class ForwardOptions
             throw new ArgumentException("Compression requires a client/server tunnel pair.");
         if (Mode == TunnelMode.Socks5 && !AllowRemoteSocks && !IPAddress.IsLoopback(address))
             throw new ArgumentException("A non-loopback SOCKS listener requires AllowRemoteSocks=true.");
-        if (Retry is null || Socket is null || Capture is null) throw new ArgumentException("Nested forward options cannot be null.");
-        Retry.Validate(); Socket.Validate(); Capture.Validate();
+        if (Retry is null || Socket is null || Capture is null || Encryption is null) throw new ArgumentException("Nested forward options cannot be null.");
+        Retry.Validate(); Socket.Validate(); Capture.Validate(); Encryption.Validate(Mode);
     }
 
     internal static void Range(int value, int min, int max, string name)

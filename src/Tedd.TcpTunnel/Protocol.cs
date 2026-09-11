@@ -12,21 +12,22 @@ internal static class Protocol
     public static void WriteHello(Span<byte> hello, ForwardOptions options)
     {
         hello.Clear();
-        "TTN2"u8.CopyTo(hello);
-        hello[4] = 2;
+        (options.Encryption.Algorithm == EncryptionAlgorithm.None ? "TTN2"u8 : "TTN3"u8).CopyTo(hello);
+        hello[4] = options.Encryption.Algorithm == EncryptionAlgorithm.None ? (byte)2 : (byte)3;
         hello[5] = (byte)options.Compression;
         hello[6] = options.CompressionHistory ? (byte)1 : (byte)0;
         hello[7] = (byte)options.Mode;
         BinaryPrimitives.WriteInt32BigEndian(hello[8..], options.BufferSize);
+        hello[12] = (byte)options.Encryption.Algorithm;
     }
 
     public static int ValidateHello(ReadOnlySpan<byte> hello, ForwardOptions options)
     {
-        if (hello.Length != HelloSize || !hello[..4].SequenceEqual("TTN2"u8) || hello[4] != 2 ||
+        if (hello.Length != HelloSize || !hello[..4].SequenceEqual(options.Encryption.Algorithm == EncryptionAlgorithm.None ? "TTN2"u8 : "TTN3"u8) || hello[4] != (options.Encryption.Algorithm == EncryptionAlgorithm.None ? 2 : 3) ||
             hello[5] != (byte)options.Compression || hello[6] != (options.CompressionHistory ? 1 : 0) ||
             hello[7] != (byte)(options.Mode == TunnelMode.Client ? TunnelMode.Server : TunnelMode.Client) ||
-            BinaryPrimitives.ReadInt32BigEndian(hello[12..]) != 0)
-            throw new InvalidDataException("Incompatible tunnel protocol, role, compression or history setting.");
+            hello[12] != (byte)options.Encryption.Algorithm || hello[13..].ContainsAnyExcept((byte)0))
+            throw new InvalidDataException("Incompatible tunnel protocol, role, compression, history or encryption setting.");
         var size = BinaryPrimitives.ReadInt32BigEndian(hello[8..]);
         if (size is < 1024 or > 1048576) throw new InvalidDataException("Invalid peer frame limit.");
         return size;

@@ -15,6 +15,10 @@ $actual = & $binary --version
 if ($LASTEXITCODE -or $actual.Trim() -ne $Version) { throw "Unexpected package version: $actual" }
 & $binary --config (Join-Path $directory 'tunnel.example.json') --check
 if ($LASTEXITCODE) { throw 'Packaged configuration smoke test failed.' }
+$generatedKey = & $binary --generate-key
+if ($LASTEXITCODE -or $generatedKey.Trim().Length -ne 44 -or [Convert]::FromBase64String($generatedKey.Trim()).Length -ne 32) { throw 'Packaged key generation failed.' }
+& $binary --mode Client --encryption:algorithm AesGcm --encryption:key $generatedKey.Trim() --check
+if ($LASTEXITCODE) { throw 'Packaged encryption configuration failed.' }
 foreach ($file in @('LICENSE', 'THIRD-PARTY-NOTICES.txt', 'README.md', 'install-kind.txt')) {
     if (!(Test-Path -LiteralPath (Join-Path $directory $file))) { throw "Missing distribution file: $file" }
 }

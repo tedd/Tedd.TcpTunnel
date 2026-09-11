@@ -22,6 +22,7 @@ jobs:
       - uses: actions/setup-dotnet@v6.0.0
         with:
           global-json-file: global.json
+      - run: node --test scripts/test-website.cjs
       - run: dotnet restore src/Tedd.TcpTunnel.sln --locked-mode
       - run: dotnet build src/Tedd.TcpTunnel.sln -c Release --no-restore
       - run: dotnet test --project src/Tedd.TcpTunnel.Tests/Tedd.TcpTunnel.Tests.csproj -c Release --no-build --no-progress --coverlet --coverlet-output-format cobertura --results-directory artifacts/coverage

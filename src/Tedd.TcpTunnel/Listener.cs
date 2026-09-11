@@ -84,11 +84,15 @@ public sealed class Listener
                     (host, port) = await Socks5.ReadTargetAsync(accepted, deadline.Token).ConfigureAwait(false);
                     socksReady = true;
                 }
+                using var serverSession = _options.Mode == TunnelMode.Server
+                    ? await TunnelHandshake.NegotiateAsync(accepted, _options, token).ConfigureAwait(false) : null;
                 using var remote = await Connector.ConnectAsync(host, port, _options.Retry, token,
                     (ex, attempt) => Log("warning", $"Connect attempt {attempt} to {host}:{port} failed.", ex)).ConfigureAwait(false);
                 SocketTuning.Apply(remote, _options.Socket, message => Log("warning", message));
                 if (socksReady) { await Socks5.ReplyAsync(accepted, 0, (IPEndPoint)remote.LocalEndPoint!, token).ConfigureAwait(false); socksReady = false; }
-                await new TunnelConnection(accepted, remote, _options, capture).RunAsync(token).ConfigureAwait(false);
+                using var clientSession = _options.Mode == TunnelMode.Client
+                    ? await TunnelHandshake.NegotiateAsync(remote, _options, token).ConfigureAwait(false) : null;
+                await new TunnelConnection(accepted, remote, _options, capture, serverSession ?? clientSession).RunAsync(token).ConfigureAwait(false);
             }
             catch (Exception ex) when (token.IsCancellationRequested && ex is OperationCanceledException or SocketException or ObjectDisposedException or IOException) { }
             catch (Exception ex)

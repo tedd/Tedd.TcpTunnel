@@ -20,7 +20,7 @@ on:
         required: true
       iterations:
         description: Measured transfers per throughput profile
-        default: '3'
+        default: '7'
         required: true
 permissions:
   contents: read
@@ -45,7 +45,7 @@ jobs:
         env:
           TARGET_MIB: ${{ inputs.target_mib }}
           ITERATIONS: ${{ inputs.iterations }}
-        run: dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --throughput --target-mib $env:TARGET_MIB --warmups 1 --iterations $env:ITERATIONS --output artifacts/throughput/benchmarks.md --json-output artifacts/throughput/benchmarks.json
+        run: dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --throughput --target-mib $env:TARGET_MIB --warmups 1 --iterations $env:ITERATIONS --output artifacts/throughput/benchmarks.md --json-output artifacts/throughput/benchmarks.json --svg-output artifacts/throughput/benchmarks.svg
       - name: Upload microbenchmark results
         uses: actions/upload-artifact@v7.0.1
         if: always() && inputs.suite == 'microbenchmarks'

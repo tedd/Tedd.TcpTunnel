@@ -24,6 +24,7 @@ internal static class Program
             if (args is ["--apply-update", var plan]) return await UpdateInstaller.ApplyAsync(plan, stop.Token).ConfigureAwait(false);
             var command = Configuration.Parse(args);
             if (command.Help) { System.Console.WriteLine(Configuration.HelpText); return 0; }
+            if (command.GenerateKey) { System.Console.WriteLine(EncryptionOptions.GenerateKey()); return 0; }
             if (command.Version) { System.Console.WriteLine(Version); return 0; }
             if (command.WriteConfig is { } file) { await File.WriteAllTextAsync(file, JsonSerializer.Serialize(command.Options, Configuration.Json), stop.Token); return 0; }
             if (command.Check) { System.Console.WriteLine("Configuration is valid."); return 0; }

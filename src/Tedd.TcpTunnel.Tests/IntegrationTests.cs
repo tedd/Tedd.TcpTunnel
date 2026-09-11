@@ -197,12 +197,13 @@ internal sealed class TunnelRig : IAsyncDisposable
     private readonly List<Task> _echoClients = [];
     private readonly Task _echoLoop;
     public ConcurrentQueue<TunnelEvent> Errors { get; } = new();
+    public TaskCompletionSource<TunnelEvent> FirstError { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public CancellationToken Token => _stop.Token;
     public int EchoPort => ((IPEndPoint)_echo.LocalEndpoint).Port;
     public TunnelRig() { _echo.Start(); _echoLoop = EchoLoopAsync(); }
     public async Task<IPEndPoint> AddAsync(ForwardOptions options)
     {
-        var listener = new Listener(options, entry => { if (entry.Level == "error") Errors.Enqueue(entry); });
+        var listener = new Listener(options, entry => { if (entry.Level == "error") { Errors.Enqueue(entry); FirstError.TrySetResult(entry); } });
         _listeners.Add(listener.Start(Token));
         return await listener.Ready.WaitAsync(Token);
     }

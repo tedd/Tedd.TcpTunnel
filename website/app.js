@@ -24,6 +24,8 @@ const commandCopy = document.querySelector('#copy-command');
 const commandStatus = document.querySelector('#copy-status');
 const compression = document.querySelector('#compression');
 const compressionHistory = document.querySelector('#compression-history');
+const encryption = document.querySelector('#encryption');
+const keyId = document.querySelector('#key-id');
 
 function selectButtons(selector, selected) {
   for (const button of document.querySelectorAll(selector)) {
@@ -54,6 +56,7 @@ function formatTunnelCommand(lines, shell) {
 }
 
 function updateTunnelCommand() {
+  keyId.disabled = encryption.value === 'None';
   compressionHistory.disabled = compression.value !== 'Brotli';
   if (compressionHistory.disabled) compressionHistory.checked = false;
   commandStatus.textContent = '';
@@ -70,7 +73,11 @@ function updateTunnelCommand() {
     `--listen-address ${document.querySelector('#listen-address').value} --listen-port ${document.querySelector('#listen-port').value}`,
     `--remote-host ${document.querySelector('#remote-host').value} --remote-port ${document.querySelector('#remote-port').value}`,
     `--compression ${compression.value} --batch-milliseconds ${document.querySelector('#batch-milliseconds').value}`,
-    compressionHistory.checked ? '--compression-history true' : ''
+    compressionHistory.checked ? '--compression-history true' : '',
+    encryption.value !== 'None' ? `--encryption:algorithm ${encryption.value}` : '',
+    encryption.value === 'None' ? '' : tunnelState.role === 'client'
+      ? `--encryption:key-id ${keyId.value} --encryption:key REPLACE_WITH_GENERATED_KEY`
+      : `--encryption:keys:${keyId.value} REPLACE_WITH_GENERATED_KEY`
   ].filter(Boolean);
 
   commandOutput.textContent = formatTunnelCommand(lines, tunnelState.shell);
@@ -78,7 +85,8 @@ function updateTunnelCommand() {
   document.querySelector('#command-label').textContent = `${mode.toUpperCase()} · ${tunnelState.shell === 'cmd' ? 'COMMAND PROMPT' : tunnelState.shell.toUpperCase()}`;
   document.querySelector('#command-note').textContent = tunnelState.role === 'client'
     ? 'Run this near the application. It listens locally and connects to the tunnel server.'
-    : 'Run this near the destination. Permit the listen port through the network firewall, and use identical compression settings on the client.';
+    : 'Run this near the destination. Permit the listen port through the network firewall, and use identical compression and encryption settings on the client.';
+  if (encryption.value !== 'None') document.querySelector('#command-note').textContent += ' Run tcptunnel --generate-key locally and replace REPLACE_WITH_GENERATED_KEY on both peers with the same output. Use a different key for each client. For production, store keys in a restricted JSON file; command-line keys appear in shell history and process listings.';
 }
 
 for (const button of document.querySelectorAll('[data-role]')) {
@@ -262,26 +270,58 @@ async function loadDownloads() {
   }
 }
 
-function renderBenchmarkChart(container, results) {
-  const maximum = Math.max(...results.map(result => result.bestMiBPerSecond));
+function renderBenchmarkSummary(container, results) {
   const rows = results.map(result => {
-    const row = document.createElement('div');
-    row.className = 'benchmark-row';
-
-    const label = document.createElement('span');
-    label.className = 'benchmark-label';
+    const row = document.createElement('tr');
+    const label = document.createElement('th');
+    label.scope = 'row';
     label.textContent = result.name;
+    const median = document.createElement('td');
+    median.textContent = `${result.medianMiBPerSecond.toFixed(1)} MiB/s`;
+    const peak = document.createElement('td');
+    peak.textContent = `${result.bestMiBPerSecond.toFixed(1)} MiB/s`;
+    row.append(label, median, peak);
+    return row;
+  });
+  setChildren(container, rows);
+}
 
-    const track = document.createElement('span');
-    track.className = 'benchmark-track';
-    const bar = document.createElement('i');
-    const percentage = maximum > 0 ? Math.max(1, Math.min(100, result.bestMiBPerSecond / maximum * 100)) : 0;
-    bar.style.width = `${percentage}%`;
-    track.append(bar);
+function percentageDifference(value, baseline) {
+  const difference = (value / baseline - 1) * 100;
+  return `${difference >= 0 ? '+' : ''}${difference.toFixed(1)}%`;
+}
 
-    const value = document.createElement('strong');
-    value.textContent = `${result.bestMiBPerSecond.toFixed(1)} MiB/s`;
-    row.append(label, track, value);
+function renderBenchmarkInterpretation(container, zstandardFast, uncompressed) {
+  const values = [
+    [
+      'Why does Zstandard -5 rank first?',
+      `Median ${zstandardFast.medianMiBPerSecond.toFixed(1)} vs ${uncompressed.medianMiBPerSecond.toFixed(1)} MiB/s (${percentageDifference(zstandardFast.medianMiBPerSecond, uncompressed.medianMiBPerSecond)})`,
+      'The input is compressible and loopback processing is not free, but wire bytes are not counted, so the difference cannot be decomposed into compression ratio and processing cost.'
+    ],
+    [
+      'Does peak show the same ordering?',
+      `Peak ${zstandardFast.bestMiBPerSecond.toFixed(1)} vs ${uncompressed.bestMiBPerSecond.toFixed(1)} MiB/s (${percentageDifference(zstandardFast.bestMiBPerSecond, uncompressed.bestMiBPerSecond)})`,
+      'No. Peak is one observation per profile; the reversed order demonstrates why median is the primary comparison.'
+    ],
+    [
+      'Why can compression help on loopback?',
+      'No external bandwidth cap',
+      'Framing, memory copies, TCP buffers, and scheduling still have finite cost. A fast codec can offset its CPU cost by moving fewer bytes.'
+    ],
+    [
+      'Which value should be compared?',
+      'Median primary; peak secondary',
+      'Median is less sensitive to scheduler and cache outliers. Neither value predicts a real network without representative data and conditions.'
+    ]
+  ];
+  const rows = values.map(valuesForRow => {
+    const row = document.createElement('tr');
+    valuesForRow.forEach((value, index) => {
+      const cell = document.createElement(index === 0 ? 'th' : 'td');
+      if (index === 0) cell.scope = 'row';
+      cell.textContent = value;
+      row.appendChild(cell);
+    });
     return row;
   });
   setChildren(container, rows);
@@ -303,19 +343,26 @@ async function loadBenchmarks() {
     const results = Array.isArray(data.results) ? data.results.filter(validBenchmarkResult) : [];
     if (!results.length) throw new Error('Benchmark data invalid');
 
-    const fastestByCodec = [...results.reduce((profiles, result) => {
+    const plaintext = results.filter(result => !result.encryption || result.encryption === 'None');
+    const fastestByCodec = [...plaintext.reduce((profiles, result) => {
       const current = profiles.get(result.codec);
-      if (!current || result.bestMiBPerSecond > current.bestMiBPerSecond) profiles.set(result.codec, result);
+      if (!current || result.medianMiBPerSecond > current.medianMiBPerSecond) profiles.set(result.codec, result);
       return profiles;
-    }, new Map()).values()].sort((left, right) => right.bestMiBPerSecond - left.bestMiBPerSecond);
-    const brotli = results.filter(result => result.codec === 'Brotli');
-    renderBenchmarkChart(document.querySelector('#algorithm-chart'), fastestByCodec);
-    renderBenchmarkChart(document.querySelector('#brotli-chart'), brotli);
+    }, new Map()).values()].sort((left, right) => right.medianMiBPerSecond - left.medianMiBPerSecond);
+    const brotli = plaintext.filter(result => result.codec === 'Brotli')
+      .sort((left, right) => right.medianMiBPerSecond - left.medianMiBPerSecond);
+    renderBenchmarkSummary(document.querySelector('#algorithm-summary-body'), fastestByCodec);
+    renderBenchmarkSummary(document.querySelector('#brotli-summary-body'), brotli);
 
-    const ranked = [...results].sort((left, right) => right.bestMiBPerSecond - left.bestMiBPerSecond);
+    const uncompressed = plaintext.find(result => result.codec === 'None');
+    const zstandardFast = results.find(result => result.name === 'Zstandard -5');
+    if (!uncompressed || !zstandardFast) throw new Error('Comparison profiles unavailable');
+    renderBenchmarkInterpretation(document.querySelector('#benchmark-interpretation-body'), zstandardFast, uncompressed);
+
+    const ranked = [...results].sort((left, right) => right.medianMiBPerSecond - left.medianMiBPerSecond);
     const rows = ranked.map(result => {
       const row = document.createElement('tr');
-      for (const value of [result.name, result.settings, result.dataSet, result.bestMiBPerSecond.toFixed(1), result.medianMiBPerSecond.toFixed(1)]) {
+      for (const value of [result.name, result.settings, result.dataSet, result.medianMiBPerSecond.toFixed(1), result.bestMiBPerSecond.toFixed(1)]) {
         const cell = document.createElement('td');
         cell.textContent = value;
         row.append(cell);
@@ -328,7 +375,7 @@ async function loadBenchmarks() {
     const date = Number.isNaN(measured.valueOf()) ? 'Recorded run' : measured.toLocaleDateString(undefined, { dateStyle: 'medium' });
     const machine = data.machine || {};
     const iterations = data.methodology && data.methodology.iterations;
-    status.textContent = `${date} · ${machine.Processor || 'Windows'} · ${machine.Framework || '.NET'} · ${iterations || 3} measured runs per profile`;
+    status.textContent = `${date} · ${machine.Processor || 'Windows'} · ${machine.Framework || '.NET'} · ${iterations || 7} measured runs per profile`;
   } catch {
     status.textContent = 'Benchmark data is temporarily unavailable. See benchmarks.md for the complete recorded results.';
   }

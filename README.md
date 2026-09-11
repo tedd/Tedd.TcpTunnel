@@ -1,6 +1,6 @@
 # Tedd.TcpTunnel
 
-TCP forwarding for Windows and Linux, with configurable compression, bounded batching,
+TCP forwarding for Windows and Linux, with configurable compression, authenticated encryption, bounded batching,
 SOCKS5 CONNECT, multiple forwarding setups, and concurrent connections.
 
 [Website](https://tedd.no/Tedd.TcpTunnel/) ·
@@ -137,8 +137,8 @@ tcptunnel --forward web --mode Raw --listen-port 8080 --remote-host 192.0.2.10 -
 Connect your application to `127.0.0.1:8080`. Each accepted connection opens its own
 connection to the destination. Raw mode works with ordinary TCP services.
 
-TcpTunnel forwards and compresses bytes; it does **not encrypt or authenticate** them.
-Use trusted networks, a VPN, or an application protocol with its own security. Listeners
+Client/Server pairs support authenticated shared-key encryption after compression.
+Raw and SOCKS5 modes, and pairs with `Encryption.Algorithm=None`, carry plaintext. Listeners
 bind to loopback by default. Changing the bind address exposes that interface.
 
 ## Compress a link
@@ -254,6 +254,112 @@ Example client settings to benchmark with your traffic:
 
 Run a matching Server for each compressed client.
 
+## Encrypt a link
+
+Generate one independent shared key per client:
+
+```sh
+tcptunnel --generate-key
+```
+
+The output is 32 cryptographically random bytes encoded as 44 Base64 characters. Deliver
+it to the client and server through a trusted channel. Use generated keys, not passwords.
+
+Configure the server's allowlist in `server.json` (replace each placeholder with a different
+generated key):
+
+```json
+{
+  "Forwards": [{
+    "Name": "server", "Mode": "Server",
+    "ListenAddress": "0.0.0.0", "ListenPort": 9001,
+    "RemoteHost": "127.0.0.1", "RemotePort": 5432,
+    "Compression": "Lz4",
+    "Encryption": {
+      "Algorithm": "ChaCha20Poly1305",
+      "Keys": {
+        "laptop": "REPLACE_WITH_LAPTOP_KEY",
+        "desktop": "REPLACE_WITH_DESKTOP_KEY"
+      }
+    }
+  }]
+}
+```
+
+The laptop's `client.json` contains only its own key:
+
+```json
+{
+  "Forwards": [{
+    "Name": "client", "Mode": "Client", "ListenPort": 9000,
+    "RemoteHost": "tunnel.example", "RemotePort": 9001,
+    "Compression": "Lz4",
+    "Encryption": {
+      "Algorithm": "ChaCha20Poly1305",
+      "KeyId": "laptop",
+      "Key": "REPLACE_WITH_LAPTOP_KEY"
+    }
+  }]
+}
+```
+
+Run `tcptunnel --config server.json` and `tcptunnel --config client.json` on their respective
+machines. Validate either file with `--check`. Restrict file permissions to the account
+running TcpTunnel. `--write-config` includes configured secrets; protect its output too.
+
+| `Encryption.Algorithm` | Cipher | Shared key | Authentication tag |
+| --- | --- | --- | --- |
+| `None` (default) | Plaintext; no authentication | None | None |
+| `ChaCha20Poly1305` | ChaCha20-Poly1305 | 256 bits | 128 bits |
+| `AesGcm` | AES-256-GCM | 256 bits | 128 bits |
+| `AesCcm` | AES-256-CCM | 256 bits | 128 bits |
+
+ChaCha20-Poly1305 is the suggested general-purpose choice and is also used by WireGuard.
+All three implementations come from `System.Security.Cryptography`; no cryptographic
+primitive is implemented by this project. Platform support is checked before listening.
+Both peers must explicitly select the same algorithm; there is no automatic downgrade.
+See [RFC 8439](https://www.rfc-editor.org/rfc/rfc8439.html),
+[WireGuard's cryptography](https://www.wireguard.com/protocol/), and
+[.NET platform support](https://learn.microsoft.com/en-us/dotnet/standard/security/cross-platform-cryptography).
+
+`Encryption.Keys` accepts up to 4096 server entries. IDs are case-sensitive and contain
+1–64 ASCII letters, digits, hyphens or underscores. Each key grants access to that forward's
+destination. To revoke one client, remove its entry and restart the server. Restarting closes
+all existing connections; retained clients can reconnect with their unchanged keys. Configuration
+is loaded at startup. For key rotation, add a new ID/key, restart, migrate the client, then
+remove the old entry and restart again. Clients must not share a key if separate revocation
+is required.
+
+For temporary command-line configuration, append these arguments to the Client/Server
+commands above (the same syntax works in Bash, PowerShell and Command Prompt):
+
+```sh
+# Client
+--encryption:algorithm ChaCha20Poly1305 --encryption:key-id laptop --encryption:key BASE64_KEY
+# Server; repeat --encryption:keys:ID for additional clients
+--encryption:algorithm ChaCha20Poly1305 --encryption:keys:laptop BASE64_KEY
+```
+
+Command-line secrets can appear in process listings and shell history. Configuration files
+are preferable for production.
+
+Encrypted peers use TTN3: the shared key authenticates both peers and the handshake transcript
+before the server opens a destination connection. Fresh random values from both peers feed
+[HKDF-SHA-256](https://www.rfc-editor.org/rfc/rfc5869.html), producing separate traffic secrets
+for each direction and connection. Each direction refreshes its record key every 1024 frames.
+Unique sequence-based nonces and authenticated frame headers detect modification, replay,
+reordering, and forged heartbeats or half-closes. Authentication precedes decompression and
+application delivery. Every frame, including a heartbeat or half-close, adds a 16-byte tag.
+Unencrypted pairs use TTN2 and remain compatible with TTN2 peers.
+
+The algorithms are standardized; TTN3 is a project-specific protocol without an independent
+cryptographic audit. A shared-key-only handshake has **no forward secrecy**: possession of a
+client's key permits decrypting its recorded sessions and impersonating either peer for that
+key. Key IDs, frame lengths and timing remain observable. Compression can expose secrets through
+length differences when attacker-controlled text and secrets share a compression context;
+use `Compression=None` for such traffic. Encryption covers the tunnel link; application-side
+connections and opt-in PCAP captures contain plaintext.
+
 ## Multiple forwarding setups
 
 ```json
@@ -312,6 +418,7 @@ supports comments and trailing commas.
 | `--config PATH` | Load JSON |
 | `--write-config PATH` | Write effective configuration and exit |
 | `--check` | Validate without opening sockets |
+| `--generate-key` | Generate a 32-byte Base64 shared key and exit |
 | `--help` / `-h` | Usage and complete option template |
 | `--version` | Application version |
 | `--check-update` | Check GitHub and exit |
@@ -336,7 +443,7 @@ supports comments and trailing commas.
 
 ### Keepalive and socket controls
 
-`HeartbeatMilliseconds` sends TTN2 no-op frames on idle outgoing tunnel directions. Peers
+`HeartbeatMilliseconds` sends tunnel no-op frames on idle outgoing tunnel directions. Peers
 consume them without delivering them to applications. Zero disables them. Raw and SOCKS
 connections use TCP keepalive instead.
 
@@ -401,18 +508,19 @@ dotnet test --project src/Tedd.TcpTunnel.Tests/Tedd.TcpTunnel.Tests.csproj -c Re
 ```
 
 Tests use xUnit and Microsoft Testing Platform. They exercise real loopback sockets, both
-execution modes, all codecs, malformed input, batching, concurrent connections, half-closes,
+execution modes, all codecs and encryption algorithms, authentication, replay and tamper rejection, malformed input, batching, concurrent connections, half-closes,
 cancellation, retries, SOCKS, captures, and updater failures. The CI gate merges Windows/Linux
 reports without excluding production source: at least 97% line coverage overall, 98% in the
 transport library, and 83% branch coverage.
 
 BenchmarkDotNet includes archived/current/Pipes copies, codec round trips, Brotli history,
-and TCP round trips across connection counts, payload sizes, and threading modes:
+authenticated encryption after compression, and TCP round trips across connection counts, payload sizes, and threading modes:
 
 ```sh
 dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --filter '*StreamCopyBenchmark*' --job short
 dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --filter '*CompressionBenchmark*' '*BrotliHistoryBenchmark*' --job short
 dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --filter '*TunnelBenchmark*' --job short
+dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --filter '*EncryptionBenchmark*' --job short
 ```
 
 The end-to-end throughput suite starts a destination sink plus a TcpTunnel client and server,
@@ -421,13 +529,14 @@ large DLLs from `System32`; Brotli profiles repeat the largest file on one conne
 history reuse against the same history-disabled sequence.
 
 ```powershell
-dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --throughput --target-mib 64 --warmups 1 --iterations 3 --output benchmarks.md --json-output website/benchmarks.json
+dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --throughput --target-mib 64 --warmups 1 --iterations 7 --output benchmarks.md --json-output website/benchmarks.json --svg-output website/benchmarks.svg
 ```
 
-The command records the best and median application-data throughput for 17 codec profiles in
-[benchmarks.md](benchmarks.md) and the website data file. Supply repeated `--file PATH` options
-to replace the Windows corpus. The manually dispatched benchmark workflow can run either this
-suite or the BenchmarkDotNet microbenchmarks.
+The command records median and peak application-data throughput for 26 compression/encryption profiles. Median
+is the primary comparison because it is less sensitive to scheduler and cache outliers. It
+writes [benchmarks.md](benchmarks.md), the website data file, and an SVG graph. Supply repeated
+`--file PATH` options to replace the Windows corpus. The manually dispatched benchmark workflow
+can run either this suite or the BenchmarkDotNet microbenchmarks.
 
 Buffers are pooled. Hot paths use spans/memory, `ValueTask`, and runtime/library vectorized
 copy and compression implementations. Connection setup, async scheduling, expired timers,

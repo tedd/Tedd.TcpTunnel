@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace Tedd.TcpTunnel.Console;
 
-internal sealed record Command(TunnelOptions Options, bool Help, bool Version, bool Check, string? WriteConfig, bool CheckUpdate, bool UpdateNow, bool Yes);
+internal sealed record Command(TunnelOptions Options, bool Help, bool Version, bool Check, string? WriteConfig, bool CheckUpdate, bool UpdateNow, bool Yes, bool GenerateKey);
 
 internal static class Configuration
 {
@@ -21,7 +21,7 @@ internal static class Configuration
     public static Command Parse(string[] args)
     {
         string? config = null, write = null;
-        bool help = false, version = false, check = false, checkUpdate = false, update = false, yes = false;
+        bool help = false, version = false, check = false, checkUpdate = false, update = false, yes = false, generateKey = false;
         var overrides = new List<(string Key, string Value)>();
         for (var i = 0; i < args.Length; i++)
         {
@@ -33,6 +33,7 @@ internal static class Configuration
             string Value() => split.Length == 2 ? split[1] : i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[++i] : "true";
             switch (key)
             {
+                case "generate-key": generateKey = true; break;
                 case "help": help = true; break;
                 case "version": version = true; break;
                 case "check": check = true; break;
@@ -49,6 +50,13 @@ internal static class Configuration
         if (options.Forwards is null || options.Forwards.Any(f => f is null)) throw new ArgumentException("Forwards must be an array of objects.");
         var node = JsonSerializer.SerializeToNode(options, Json)!.AsObject();
         var forwards = node[nameof(TunnelOptions.Forwards)]!.AsArray();
+        for (var j = 0; j < options.Forwards.Count; j++)
+            if (options.Forwards[j].Encryption?.Keys is { } keys)
+            {
+                var map = new JsonObject(new JsonNodeOptions { PropertyNameCaseInsensitive = false });
+                foreach (var pair in keys) map.Add(pair.Key, JsonValue.Create(pair.Value));
+                forwards[j]![nameof(ForwardOptions.Encryption)]![nameof(EncryptionOptions.Keys)] = map;
+            }
         var current = 0;
         foreach (var (key, value) in overrides)
         {
@@ -70,14 +78,14 @@ internal static class Configuration
             Set(root, path, value);
         }
         options = node.Deserialize<TunnelOptions>(Json)!;
-        if (!help && !version && !checkUpdate && !update)
+        if (!help && !version && !checkUpdate && !update && !generateKey)
         {
             if (write is not null && options.Forwards.Count == 0) options.Forwards.Add(new());
             options.Validate();
         }
         else if (options.Update is null) throw new ArgumentException("Update cannot be null.");
         else options.Update.Validate();
-        return new(options, help, version, check, write, checkUpdate, update, yes);
+        return new(options, help, version, check, write, checkUpdate, update, yes, generateKey);
     }
 
     private static string Normalize(string key) => key.Replace("-", "", StringComparison.Ordinal).Replace("_", "", StringComparison.Ordinal).ToLowerInvariant();
@@ -92,9 +100,16 @@ internal static class Configuration
                 root = array[index]!; continue;
             }
             if (root is not JsonObject obj) throw new ArgumentException($"Invalid option path: {string.Join(':', path)}");
+            if (i > 0 && Normalize(path[i - 1]) == "keys" && i == path.Length - 1)
+            {
+                obj[path[i]] = value;
+                return;
+            }
             var property = obj.FirstOrDefault(p => Normalize(p.Key) == Normalize(path[i]));
             if (property.Key is null) throw new ArgumentException($"Unknown option: {string.Join(':', path)}");
-            if (i + 1 < path.Length) { root = property.Value ?? throw new ArgumentException($"Option {path[i]} is not an object."); continue; }
+            if (i + 1 < path.Length && Normalize(property.Key) == "keys" && property.Value is null)
+                obj[property.Key] = new JsonObject(new JsonNodeOptions { PropertyNameCaseInsensitive = false });
+            if (i + 1 < path.Length) { root = obj[property.Key] ?? throw new ArgumentException($"Option {path[i]} is not an object."); continue; }
             if (property.Value is JsonObject or JsonArray) throw new ArgumentException("Set individual option fields.");
             var kind = property.Value?.GetValueKind();
             obj[property.Key] = kind switch
@@ -107,19 +122,24 @@ internal static class Configuration
     }
 
     public static string HelpText => """
-Tedd.TcpTunnel — TCP forwarding and compression
+Tedd.TcpTunnel — TCP forwarding, compression and authenticated encryption
 
 tcptunnel --config tunnel.json [overrides]
 tcptunnel --forward web --mode Raw --listen-port 8080 --remote-host example.org --remote-port 80
 tcptunnel --forward compressed --mode Client --listen-port 9000 --remote-port 9001 --compression Brotli
 
 --forward NAME selects or adds a forward; subsequent short options apply to it.
+Encryption: --encryption:algorithm ChaCha20Poly1305
+Client: --encryption:key-id laptop --encryption:key BASE64
+Server: --encryption:keys:laptop BASE64 (repeat with other IDs for other clients)
+Keep production keys in a restricted configuration file to avoid shell history/process exposure.
 Every JSON field can be set using --forwards:0:socket:no-delay false or --socket:no-delay=false.
 Hyphenated, PascalCase and camelCase field names are equivalent. CLI values override JSON.
 Booleans accept true/false; a flag without a value means true. Use null to clear optional strings.
 
 --config PATH          Load JSON configuration
 --write-config PATH    Write the complete effective configuration and exit
+--generate-key         Generate a random 32-byte Base64 shared key and exit
 --check                Validate configuration without opening listeners
 --check-update         Check GitHub Releases and exit
 --update-now [--yes]   Download, verify and offer to apply an update

@@ -14,6 +14,7 @@ namespace Tedd.TcpTunnel.Benchmarks;
 
 internal static class ThroughputSuite
 {
+    private static readonly string BenchmarkKey = EncryptionOptions.GenerateKey();
     private const int TransferBufferSize = 1024 * 1024;
 
     private static readonly Scenario[] Scenarios =
@@ -34,7 +35,16 @@ internal static class ThroughputSuite
         new("GZip fastest", Codec.GZip, "level=Fastest", CompressionLevel.Fastest),
         new("GZip optimal", Codec.GZip, "level=Optimal", CompressionLevel.Optimal),
         new("ZLib fastest", Codec.ZLib, "level=Fastest", CompressionLevel.Fastest),
-        new("ZLib optimal", Codec.ZLib, "level=Optimal", CompressionLevel.Optimal)
+        new("ZLib optimal", Codec.ZLib, "level=Optimal", CompressionLevel.Optimal),
+        new("ChaCha20-Poly1305", Codec.None, "encryption=ChaCha20Poly1305", Encryption: EncryptionAlgorithm.ChaCha20Poly1305),
+        new("AES-256-GCM", Codec.None, "encryption=AesGcm", Encryption: EncryptionAlgorithm.AesGcm),
+        new("AES-256-CCM", Codec.None, "encryption=AesCcm", Encryption: EncryptionAlgorithm.AesCcm),
+        new("LZ4 + ChaCha20-Poly1305", Codec.Lz4, "level=Fastest, encryption=ChaCha20Poly1305", Encryption: EncryptionAlgorithm.ChaCha20Poly1305),
+        new("LZ4 + AES-256-GCM", Codec.Lz4, "level=Fastest, encryption=AesGcm", Encryption: EncryptionAlgorithm.AesGcm),
+        new("LZ4 + AES-256-CCM", Codec.Lz4, "level=Fastest, encryption=AesCcm", Encryption: EncryptionAlgorithm.AesCcm),
+        new("Brotli history + ChaCha20", Codec.Brotli, "quality=4, window=22, history=true, encryption=ChaCha20Poly1305", BrotliWindow: 22, History: true, RepeatFile: true, Encryption: EncryptionAlgorithm.ChaCha20Poly1305),
+        new("Brotli history + AES-GCM", Codec.Brotli, "quality=4, window=22, history=true, encryption=AesGcm", BrotliWindow: 22, History: true, RepeatFile: true, Encryption: EncryptionAlgorithm.AesGcm),
+        new("Brotli history + AES-CCM", Codec.Brotli, "quality=4, window=22, history=true, encryption=AesCcm", BrotliWindow: 22, History: true, RepeatFile: true, Encryption: EncryptionAlgorithm.AesCcm)
     ];
 
     public static async Task<int> RunAsync(string[] args)
@@ -61,6 +71,7 @@ internal static class ThroughputSuite
         Console.WriteLine($"Target: {options.TargetMiB} MiB per transfer, {options.Warmups} warm-up(s), {options.Iterations} measured iteration(s).");
         foreach (var scenario in Scenarios)
         {
+            if (!EncryptionOptions.IsSupported(scenario.Encryption)) { Console.WriteLine($"Skipping unsupported {scenario.Encryption}."); continue; }
             var plan = BuildPlan(files, targetBytes, scenario.RepeatFile);
             Console.Write($"{scenario.Name,-24} ");
             var result = await MeasureScenarioAsync(scenario, plan, options).ConfigureAwait(false);
@@ -72,6 +83,7 @@ internal static class ThroughputSuite
         await WriteOutputsAsync(report).ConfigureAwait(false);
         Console.WriteLine($"Markdown: {Path.GetFullPath(options.MarkdownOutput)}");
         Console.WriteLine($"Web data: {Path.GetFullPath(options.JsonOutput)}");
+        Console.WriteLine($"Graph: {Path.GetFullPath(options.SvgOutput)}");
         return 0;
     }
 
@@ -120,7 +132,15 @@ internal static class ThroughputSuite
             sequence.Add(file);
             bytes += file.Length;
         }
-        return new(sequence, bytes, repeated ? $"Repeated {sourceFiles[0].Name}" : "Mixed DLL set");
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[TransferBufferSize];
+        foreach (var file in sequence)
+        {
+            using var input = file.OpenRead();
+            int count;
+            while ((count = input.Read(buffer)) > 0) hash.AppendData(buffer.AsSpan(0, count));
+        }
+        return new(sequence, bytes, hash.GetHashAndReset(), repeated ? $"Repeated {sourceFiles[0].Name}" : "Mixed DLL set");
     }
 
     private static async Task<ScenarioResult> MeasureScenarioAsync(Scenario scenario, TransferPlan plan, SuiteOptions options)
@@ -155,6 +175,7 @@ internal static class ThroughputSuite
             return new(
                 scenario.Name,
                 scenario.Codec.ToString(),
+                scenario.Encryption.ToString(),
                 scenario.Settings,
                 plan.Description,
                 plan.Bytes,
@@ -189,6 +210,12 @@ internal static class ThroughputSuite
         RemoteHost = IPAddress.Loopback.ToString(),
         RemotePort = remotePort,
         Compression = scenario.Codec,
+        Encryption = scenario.Encryption == EncryptionAlgorithm.None ? new() : new()
+        {
+            Algorithm = scenario.Encryption,
+            Key = mode == TunnelMode.Client ? BenchmarkKey : null,
+            Keys = mode == TunnelMode.Server ? new() { ["default"] = BenchmarkKey } : null
+        },
         CompressionLevel = scenario.CompressionLevel,
         BrotliQuality = scenario.BrotliQuality,
         BrotliWindow = scenario.BrotliWindow,
@@ -214,7 +241,7 @@ internal static class ThroughputSuite
     private static async Task<double> MeasureOnceAsync(TcpListener sink, IPEndPoint clientEndpoint, TransferPlan plan, CancellationToken token)
     {
         var accepted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var receiveTask = ReceiveAsync(sink, plan.Bytes, accepted, token);
+        var receiveTask = ReceiveAsync(sink, plan.Bytes, plan.Sha256, accepted, token);
         using var source = new TcpClient { NoDelay = true };
         await source.ConnectAsync(clientEndpoint.Address, clientEndpoint.Port, token).ConfigureAwait(false);
         await accepted.Task.WaitAsync(token).ConfigureAwait(false);
@@ -243,6 +270,7 @@ internal static class ThroughputSuite
     private static async Task<long> ReceiveAsync(
         TcpListener sink,
         long expected,
+        byte[] expectedHash,
         TaskCompletionSource accepted,
         CancellationToken token)
     {
@@ -252,15 +280,19 @@ internal static class ThroughputSuite
         var buffer = ArrayPool<byte>.Shared.Rent(TransferBufferSize);
         try
         {
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             long received = 0;
             var stream = destination.GetStream();
             while (received < expected)
             {
                 var count = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), token).ConfigureAwait(false);
                 if (count == 0) break;
+                hash.AppendData(buffer.AsSpan(0, count));
                 received += count;
                 if (received > expected) throw new InvalidDataException("Destination received more bytes than expected.");
             }
+            if (!hash.GetHashAndReset().AsSpan().SequenceEqual(expectedHash)) throw new InvalidDataException("Destination payload hash mismatch.");
+            if (await stream.ReadAsync(buffer.AsMemory(0, 1), token).ConfigureAwait(false) != 0) throw new InvalidDataException("Unexpected trailing data.");
             return received;
         }
         finally { ArrayPool<byte>.Shared.Return(buffer); }
@@ -270,8 +302,10 @@ internal static class ThroughputSuite
     {
         var markdownPath = Path.GetFullPath(report.Options.MarkdownOutput);
         var jsonPath = Path.GetFullPath(report.Options.JsonOutput);
+        var svgPath = Path.GetFullPath(report.Options.SvgOutput);
         Directory.CreateDirectory(Path.GetDirectoryName(markdownPath)!);
         Directory.CreateDirectory(Path.GetDirectoryName(jsonPath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(svgPath)!);
         await File.WriteAllTextAsync(markdownPath, CreateMarkdown(report), new UTF8Encoding(false)).ConfigureAwait(false);
         var json = JsonSerializer.Serialize(new
         {
@@ -286,13 +320,14 @@ internal static class ThroughputSuite
                 warmups = report.Options.Warmups,
                 iterations = report.Options.Iterations,
                 targetMiB = report.Options.TargetMiB,
-                reportedValue = "Best observed application-data throughput; median retained for variability"
+                reportedValue = "Median application-data throughput; peak retained to show the highest observed run"
             },
             files = report.Files.Select(file => new { name = file.Name, bytes = file.Bytes, sha256 = file.Sha256 }),
             results = report.Results.Select(result => new
             {
                 name = result.Name,
                 codec = result.Codec,
+                encryption = result.Encryption,
                 settings = result.Settings,
                 dataSet = result.DataSet,
                 transferredBytes = result.TransferredBytes,
@@ -302,6 +337,7 @@ internal static class ThroughputSuite
             })
         }, new JsonSerializerOptions { WriteIndented = true });
         await File.WriteAllTextAsync(jsonPath, json + Environment.NewLine, new UTF8Encoding(false)).ConfigureAwait(false);
+        await File.WriteAllTextAsync(svgPath, CreateSvg(report), new UTF8Encoding(false)).ConfigureAwait(false);
     }
 
     private static string CreateMarkdown(BenchmarkReport report)
@@ -309,19 +345,32 @@ internal static class ThroughputSuite
         var text = new StringBuilder();
         var tick = (char)96;
         var fence = new string(tick, 3);
+        var none = report.Results.Single(result => result.Codec == Codec.None.ToString() && result.Encryption == EncryptionAlgorithm.None.ToString());
+        var zstandardFast = report.Results.Single(result => result.Name == "Zstandard -5");
         text.AppendLine("# End-to-end throughput benchmarks").AppendLine();
         text.AppendLine($"Measured {report.GeneratedAt:yyyy-MM-dd HH:mm} UTC on {report.Machine.Processor} ({report.Machine.Architecture}, {report.Machine.LogicalProcessors} logical processors) using {report.Machine.Framework}.");
         text.AppendLine();
-        text.AppendLine("These loopback results measure the complete Application → Client → Server → destination path. They isolate framing, copying, and codec cost; they do not predict throughput across a particular network.");
+        text.AppendLine("These loopback results measure the complete Application → Client → Server → destination path. They isolate framing, copying, compression, authenticated encryption and destination hashing cost; they do not predict throughput across a particular network.");
+        text.AppendLine();
+        text.AppendLine("## Interpretation").AppendLine();
+        text.AppendLine("| Question | Recorded evidence | Interpretation |");
+        text.AppendLine("| --- | --- | --- |");
+        text.AppendLine($"| Why does Zstandard -5 rank first? | Median {Format(zstandardFast.MedianMiBPerSecond)} vs {Format(none.MedianMiBPerSecond)} MiB/s ({Difference(zstandardFast.MedianMiBPerSecond, none.MedianMiBPerSecond)}) | The input is compressible and loopback processing is not free, but the suite does not count tunnel-wire bytes, so it cannot decompose the difference into compression ratio and processing cost. |");
+        text.AppendLine($"| Does peak show the same ordering? | Peak {Format(zstandardFast.BestMiBPerSecond)} vs {Format(none.BestMiBPerSecond)} MiB/s ({Difference(zstandardFast.BestMiBPerSecond, none.BestMiBPerSecond)}) | No. Peak is one observation per profile; the reversed order demonstrates why median is the primary comparison. |");
+        text.AppendLine("| Why can compression help without a bandwidth cap? | Loopback has no external link cap. | Bytes still incur framing, managed/native copies, TCP-buffer work, and scheduling. A fast codec can reduce that work enough to offset its CPU cost on compressible input. |");
+        text.AppendLine("| Which value should be compared? | Median is the primary result; peak is retained separately. | Median is less sensitive to scheduler and cache outliers. Neither value predicts a real network without representative data and conditions. |");
+        text.AppendLine();
+        text.AppendLine("## Graph").AppendLine();
+        text.AppendLine("![Grouped median and peak throughput for every compression and encryption profile](website/benchmarks.svg)");
         text.AppendLine();
         text.AppendLine("## Results").AppendLine();
-        text.AppendLine("| Rank | Codec profile | Settings | Input | Best MiB/s | Median MiB/s |");
+        text.AppendLine("| Rank | Profile | Settings | Input | Median MiB/s | Peak MiB/s |");
         text.AppendLine("| ---: | --- | --- | --- | ---: | ---: |");
-        var ranked = report.Results.OrderByDescending(result => result.BestMiBPerSecond).ToArray();
+        var ranked = report.Results.OrderByDescending(result => result.MedianMiBPerSecond).ToArray();
         for (var index = 0; index < ranked.Length; index++)
         {
             var result = ranked[index];
-            text.AppendLine($"| {index + 1} | {result.Name} | {result.Settings} | {result.DataSet} | {Format(result.BestMiBPerSecond)} | {Format(result.MedianMiBPerSecond)} |");
+            text.AppendLine($"| {index + 1} | {result.Name} | {result.Settings} | {result.DataSet} | {Format(result.MedianMiBPerSecond)} | {Format(result.BestMiBPerSecond)} |");
         }
 
         text.AppendLine().AppendLine("## Input files").AppendLine();
@@ -331,21 +380,71 @@ internal static class ThroughputSuite
             text.AppendLine($"| {file.Name} | {Format(ToMiB(file.Bytes))} | {tick}{file.Sha256}{tick} |");
 
         text.AppendLine().AppendLine("## Methodology").AppendLine();
-        text.AppendLine($"- Platform: {report.Machine.OperatingSystem}");
-        text.AppendLine($"- Execution: {report.Options.Execution}; 1 MiB tunnel and file-copy buffers; zero application batching delay.");
-        text.AppendLine($"- Runs: {report.Options.Warmups} warm-up(s), then {report.Options.Iterations} measured transfer(s) of at least {report.Options.TargetMiB} MiB per profile.");
-        text.AppendLine("- Reported speed: highest measured application-data rate. Median is included to expose run-to-run variability.");
-        text.AppendLine("- Brotli inputs: the largest selected DLL is repeated on one connection so history-enabled profiles can reuse earlier content. History-disabled Brotli profiles use the identical repeated sequence for a controlled comparison.");
-        text.AppendLine("- Other inputs: the selected DLLs are cycled in order. Warm-ups populate the OS page cache so the measurement emphasizes tunnel throughput rather than storage latency.");
-        text.AppendLine("- The sink validates the exact byte count. TCP and TTN2 framing preserve ordering; no network encryption is present in this benchmark.");
+        text.AppendLine("| Parameter | Value |");
+        text.AppendLine("| --- | --- |");
+        text.AppendLine($"| Platform | {report.Machine.OperatingSystem} |");
+        text.AppendLine($"| Execution | {report.Options.Execution}; 1 MiB tunnel and file-copy buffers; zero application batching delay |");
+        text.AppendLine($"| Runs | {report.Options.Warmups} warm-up(s), then {report.Options.Iterations} measured transfer(s) of at least {report.Options.TargetMiB} MiB per profile |");
+        text.AppendLine("| Reported speed | Median application-data rate is primary; peak is the highest observed run |");
+        text.AppendLine("| Brotli input | Largest selected DLL repeated on one connection; history-enabled and disabled profiles receive the identical sequence |");
+        text.AppendLine("| Other input | Selected DLLs cycled in order; warm-ups populate the OS page cache |");
+        text.AppendLine("| Validation | Sink verifies exact byte count, SHA-256 digest and half-close; encrypted profiles use TTN3 with the stated cipher after compression |");
+        text.AppendLine("| Limitation | Tunnel-wire byte count is not recorded, so codec throughput differences cannot be decomposed into compression ratio and processing cost |");
 
         text.AppendLine().AppendLine("## Reproduce").AppendLine();
         text.AppendLine($"Run from the repository root on Windows with the SDK pinned by {tick}global.json{tick}:").AppendLine();
         text.AppendLine(fence + "powershell");
-        text.AppendLine($"dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --throughput --target-mib {report.Options.TargetMiB} --warmups {report.Options.Warmups} --iterations {report.Options.Iterations} --output benchmarks.md --json-output website/benchmarks.json");
+        text.AppendLine($"dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --throughput --target-mib {report.Options.TargetMiB} --warmups {report.Options.Warmups} --iterations {report.Options.Iterations} --output benchmarks.md --json-output website/benchmarks.json --svg-output website/benchmarks.svg");
         text.AppendLine(fence);
         text.AppendLine();
         text.AppendLine($"Use repeated {tick}--file PATH{tick} arguments to supply a different corpus. On non-Windows systems, at least one {tick}--file{tick} is required.");
+        return text.ToString();
+    }
+
+    private static string CreateSvg(BenchmarkReport report)
+    {
+        const int width = 1200;
+        const int left = 230;
+        const int right = 95;
+        const int top = 118;
+        const int rowHeight = 34;
+        const int bottom = 64;
+        var ranked = report.Results.OrderByDescending(result => result.MedianMiBPerSecond).ToArray();
+        var height = top + ranked.Length * rowHeight + bottom;
+        var chartWidth = width - left - right;
+        var axisMaximum = Math.Max(25, Math.Ceiling(ranked.Max(result => result.BestMiBPerSecond) / 25) * 25);
+        var text = new StringBuilder();
+        text.AppendLine($"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\" viewBox=\"0 0 {width} {height}\" role=\"img\" aria-labelledby=\"title description\">");
+        text.AppendLine("<title id=\"title\">Median and peak end-to-end TcpTunnel throughput</title>");
+        text.AppendLine("<desc id=\"description\">Grouped horizontal bars compare median and peak application-data throughput in mebibytes per second for all measured compression and encryption profiles.</desc>");
+        text.AppendLine("<rect width=\"100%\" height=\"100%\" rx=\"12\" fill=\"#ffffff\"/>");
+        text.AppendLine("<style>text{font-family:Arial,sans-serif;fill:#13233b}.title{font-size:24px;font-weight:700}.subtitle,.tick{font-size:12px;fill:#667085}.label{font-size:13px;font-weight:600}.legend{font-size:12px;font-weight:600}.grid{stroke:#d9e1ec;stroke-width:1}.axis{stroke:#9aa8ba;stroke-width:1}</style>");
+        text.AppendLine("<text class=\"title\" x=\"28\" y=\"38\">End-to-end throughput by profile</text>");
+        text.AppendLine("<text class=\"subtitle\" x=\"28\" y=\"61\">Median is the primary comparison; peak is the highest observed run.</text>");
+        text.AppendLine("<rect x=\"760\" y=\"30\" width=\"18\" height=\"9\" rx=\"3\" fill=\"#255de8\"/><text class=\"legend\" x=\"786\" y=\"39\">Median</text>");
+        text.AppendLine("<rect x=\"865\" y=\"30\" width=\"18\" height=\"9\" rx=\"3\" fill=\"#9bb6f2\"/><text class=\"legend\" x=\"891\" y=\"39\">Peak</text>");
+
+        for (var index = 0; index <= 5; index++)
+        {
+            var value = axisMaximum * index / 5;
+            var x = left + chartWidth * index / 5d;
+            text.AppendLine($"<line class=\"grid\" x1=\"{Svg(x)}\" y1=\"{top - 13}\" x2=\"{Svg(x)}\" y2=\"{height - bottom + 5}\"/>");
+            text.AppendLine($"<text class=\"tick\" x=\"{Svg(x)}\" y=\"{height - 24}\" text-anchor=\"middle\">{value:0} MiB/s</text>");
+        }
+
+        for (var index = 0; index < ranked.Length; index++)
+        {
+            var result = ranked[index];
+            var y = top + index * rowHeight;
+            var medianWidth = chartWidth * result.MedianMiBPerSecond / axisMaximum;
+            var peakWidth = chartWidth * result.BestMiBPerSecond / axisMaximum;
+            text.AppendLine($"<text class=\"label\" x=\"{left - 14}\" y=\"{y + 14}\" text-anchor=\"end\">{Xml(result.Name)}</text>");
+            text.AppendLine($"<rect x=\"{left}\" y=\"{y + 3}\" width=\"{Svg(medianWidth)}\" height=\"9\" rx=\"3\" fill=\"#255de8\"/>");
+            text.AppendLine($"<rect x=\"{left}\" y=\"{y + 16}\" width=\"{Svg(peakWidth)}\" height=\"9\" rx=\"3\" fill=\"#9bb6f2\"/>");
+        }
+
+        text.AppendLine($"<line class=\"axis\" x1=\"{left}\" y1=\"{height - bottom + 5}\" x2=\"{width - right}\" y2=\"{height - bottom + 5}\"/>");
+        text.AppendLine("</svg>");
         return text.ToString();
     }
 
@@ -355,6 +454,14 @@ internal static class ThroughputSuite
 
     private static double ToMiB(long bytes) => bytes / (1024d * 1024d);
     private static string Format(double value) => value.ToString("0.0", CultureInfo.InvariantCulture);
+    private static string Difference(double value, double baseline) =>
+        ((value / baseline - 1) * 100).ToString("+0.0;-0.0;0.0", CultureInfo.InvariantCulture) + "%";
+    private static string Svg(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+    private static string Xml(string value) => value
+        .Replace("&", "&amp;", StringComparison.Ordinal)
+        .Replace("<", "&lt;", StringComparison.Ordinal)
+        .Replace(">", "&gt;", StringComparison.Ordinal)
+        .Replace("\"", "&quot;", StringComparison.Ordinal);
 
     private sealed record Scenario(
         string Name,
@@ -365,14 +472,16 @@ internal static class ThroughputSuite
         int BrotliWindow = 20,
         int ZstandardLevel = 3,
         bool History = false,
-        bool RepeatFile = false);
+        bool RepeatFile = false,
+        EncryptionAlgorithm Encryption = EncryptionAlgorithm.None);
 
-    private sealed record TransferPlan(IReadOnlyList<FileInfo> Files, long Bytes, string Description);
+    private sealed record TransferPlan(IReadOnlyList<FileInfo> Files, long Bytes, byte[] Sha256, string Description);
     private sealed record FileSample(string Name, long Bytes, string Sha256);
     private sealed record MachineInformation(string OperatingSystem, string Architecture, string Processor, int LogicalProcessors, string Framework);
     private sealed record ScenarioResult(
         string Name,
         string Codec,
+        string Encryption,
         string Settings,
         string DataSet,
         long TransferredBytes,
@@ -394,6 +503,7 @@ internal static class ThroughputSuite
         ExecutionMode Execution,
         string MarkdownOutput,
         string JsonOutput,
+        string SvgOutput,
         IReadOnlyList<string> Files,
         bool Help)
     {
@@ -401,11 +511,12 @@ internal static class ThroughputSuite
         {
             var targetMiB = 64;
             var warmups = 1;
-            var iterations = 3;
+            var iterations = 7;
             var timeoutSeconds = 600;
             var execution = ExecutionMode.Async;
             var markdown = "benchmarks.md";
             var json = "website/benchmarks.json";
+            var svg = "website/benchmarks.svg";
             var files = new List<string>();
             var help = false;
 
@@ -429,12 +540,13 @@ internal static class ThroughputSuite
                         break;
                     case "--output": markdown = Value(ref index); break;
                     case "--json-output": json = Value(ref index); break;
+                    case "--svg-output": svg = Value(ref index); break;
                     case "--file": files.Add(Value(ref index)); break;
                     case "--help" or "-h": help = true; break;
                     default: throw new ArgumentException($"Unknown throughput option: {args[index]}");
                 }
             }
-            return new(targetMiB, warmups, iterations, timeoutSeconds, execution, markdown, json, files, help);
+            return new(targetMiB, warmups, iterations, timeoutSeconds, execution, markdown, json, svg, files, help);
         }
 
         private static int Positive(string value, string name) =>
@@ -455,12 +567,13 @@ dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --throughput
 Options:
   --target-mib N       Minimum mebibytes transferred per profile (default: 64)
   --warmups N          Unmeasured transfers before each profile (default: 1)
-  --iterations N       Measured transfers per profile (default: 3)
+  --iterations N       Measured transfers per profile (default: 7)
   --timeout-seconds N  Per-profile timeout (default: 600)
   --execution MODE     Async or Dedicated (default: Async)
   --file PATH          Input file; repeat for a multi-file corpus
   --output PATH        Markdown report (default: benchmarks.md)
   --json-output PATH   Website data (default: website/benchmarks.json)
+  --svg-output PATH    SVG graph (default: website/benchmarks.svg)
 """;
     }
 }
