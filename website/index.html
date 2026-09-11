@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Tedd.TcpTunnel forwards TCP traffic with configurable compression, precise batching, SOCKS5, and multiple routes. Available for Windows and Linux.">
+  <meta name="description" content="A TCP tunnel for Windows and Linux. Run a client and server at opposite ends of a network link to forward TCP connections with optional compression.">
   <meta name="theme-color" content="#f7f9fc">
-  <title>Tedd.TcpTunnel — Your traffic. A better route.</title>
+  <title>Tedd.TcpTunnel — TCP tunnel for Windows and Linux</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
   <script src="app.js" type="module"></script>
@@ -19,19 +19,19 @@
 </header>
 <main id="main">
   <section class="wrap hero">
-    <div class="hero-copy"><div class="eyebrow"><span class="label">OPEN SOURCE</span> TCP, WITH OPTIONS</div>
-      <h1>Your traffic.<br><span>A better route.</span></h1>
-      <p class="lede">Forward TCP connections. Compress the link. Tune the trade-off between latency, throughput, and bandwidth.</p>
+    <div class="hero-copy"><div class="eyebrow"><span class="label">OPEN SOURCE</span> WINDOWS &amp; LINUX</div>
+      <h1>A TCP tunnel.<br><span>At both ends.</span></h1>
+      <p class="lede">Tedd.TcpTunnel forwards TCP connections through a client and server running at opposite ends of a network link. It can compress traffic between them and forwards the original byte stream to your destination service.</p>
       <div class="hero-actions"><a class="button" href="#download">Get TcpTunnel <span aria-hidden="true">↓</span></a><a class="text-link" href="https://github.com/tedd/Tedd.TcpTunnel/tree/deploy#readme">Read the docs <span aria-hidden="true">↗</span></a></div>
       <p class="platforms">Windows &amp; Linux <span> / </span> x64 &amp; ARM64 <span> / </span> LGPL-2.1 licensed</p>
     </div>
     <div class="route-board" aria-label="Application traffic passes through a tunnel client, a compressed TCP link, and a tunnel server to its destination.">
-      <div class="board-title"><span>THE PATH, UNDER YOUR CONTROL</span><span class="mono">TCP / 02</span></div>
+      <div class="board-title"><span>CLIENT → SERVER → DESTINATION</span><span class="mono">TCP</span></div>
       <div class="endpoint"><span class="endpoint-icon" aria-hidden="true">01</span><div><strong>Your application</strong><span>Ordinary TCP traffic</span></div><span class="endpoint-tag">LOCAL</span></div>
       <div class="route-stem" aria-hidden="true"></div>
-      <div class="tunnel-node"><span class="mono">CLIENT</span><strong>Batch. Compress. Forward.</strong><span class="node-port">:9000</span></div>
+      <div class="tunnel-node"><span class="mono">CLIENT</span><strong>Compress outgoing data</strong><span class="node-port">:9000</span></div>
       <div class="link-zone"><span class="link-line" aria-hidden="true"></span><div class="packets" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="link-caption"><span>ONE TCP LINK PER CONNECTION</span><strong>Brotli · LZ4 · Zstandard</strong></div></div>
-      <div class="tunnel-node"><span class="mono">SERVER</span><strong>Restore. Deliver.</strong><span class="node-port">:9001</span></div>
+      <div class="tunnel-node"><span class="mono">SERVER</span><strong>Decompress and forward</strong><span class="node-port">:9001</span></div>
       <div class="route-stem" aria-hidden="true"></div>
       <div class="endpoint"><span class="endpoint-icon" aria-hidden="true">02</span><div><strong>Your destination</strong><span>The original byte stream</span></div><span class="endpoint-tag">REMOTE</span></div>
       <div class="board-footer"><span>Any TCP application</span><span>Configurable in both directions</span></div>
@@ -39,22 +39,22 @@
   </section>
   <section class="capability-strip" aria-label="Capabilities"><div class="wrap"><span>Configurable compression</span><span>Multiple forwarding setups</span><span>SOCKS5 CONNECT</span><span>PCAP capture</span></div></section>
   <section id="how" class="wrap features">
-    <div class="section-intro"><p class="eyebrow">MAKE THE LINK FIT THE WORKLOAD</p><h2>Small requests.<br>Large transfers.<br><span>Your choice.</span></h2></div>
+    <div class="section-intro"><p class="eyebrow">TUNNEL OPTIONS</p><h2>Compression,<br>batching, and<br><span>forwarding.</span></h2></div>
     <div class="feature-list">
-      <article><span class="index">01 /</span><div><h3>A window you control</h3><p>Send immediately, or collect data for a maximum number of milliseconds. A full buffer goes out without waiting for the deadline.</p></div></article>
-      <article><span class="index">02 /</span><div><h3>Compression with range</h3><p>Choose Brotli, LZ4, Zstandard, Deflate, GZip, ZLib, or no compression. Brotli can retain history across frames to reuse repeated content.</p></div></article>
-      <article><span class="index">03 /</span><div><h3>More routes. One process.</h3><p>Run independent forwarding setups with their own compression, connection limits, retries, socket settings, and packet captures.</p></div></article>
+      <article><span class="index">01 /</span><div><h3>Bounded send buffering</h3><p>Send immediately, or collect data for a maximum number of milliseconds. A full buffer goes out without waiting for the deadline.</p></div></article>
+      <article><span class="index">02 /</span><div><h3>Configurable compression</h3><p>Choose Brotli, LZ4, Zstandard, Deflate, GZip, ZLib, or no compression. Brotli can retain history across frames to reuse repeated content.</p></div></article>
+      <article><span class="index">03 /</span><div><h3>Multiple forwarding setups</h3><p>Run independent forwarding setups with their own compression, connection limits, retries, socket settings, and packet captures.</p></div></article>
     </div>
   </section>
   <section id="configure" class="configure-section"><div class="wrap configure-grid">
-    <div><p class="eyebrow">START WITH YOUR PRIORITY</p><h2>One command.<br>Room to tune.</h2><p>Every setting is available in JSON and on the command line. Start with a profile, then adjust it for your traffic.</p><div class="profile-options" role="group" aria-label="Example profile"><button type="button" data-profile="latency" aria-pressed="true">Low latency</button><button type="button" data-profile="throughput" aria-pressed="false">Throughput</button><button type="button" data-profile="compression" aria-pressed="false">Compression</button></div></div>
+    <div><p class="eyebrow">CONFIGURATION</p><h2>JSON config<br>or command line.</h2><p>Every setting is available in JSON and on the command line. Select an example, then set the addresses, ports, and options for your connection.</p><div class="profile-options" role="group" aria-label="Example profile"><button type="button" data-profile="latency" aria-pressed="true">Low latency</button><button type="button" data-profile="throughput" aria-pressed="false">Throughput</button><button type="button" data-profile="compression" aria-pressed="false">Compression</button></div></div>
     <div class="command-panel"><div class="command-top"><span>TERMINAL</span><button id="copy" type="button">Copy command</button></div><pre><code id="command">tcptunnel --forward app --mode Client
   --listen-port 9000 --remote-host tunnel.example
   --remote-port 9001 --compression Lz4
   --batch-milliseconds 0 --socket:no-delay true</code></pre><p id="profile-note">LZ4 with immediate forwarding and TCP_NODELAY. Run a matching Server on the other end.</p><span id="copy-status" role="status" aria-live="polite"></span></div>
   </div></section>
   <section id="download" class="wrap downloads">
-    <div class="download-heading"><div><p class="eyebrow">TAKE THE SHORT ROUTE</p><h2>Get TcpTunnel.</h2></div><p>Self-contained packages.<br>No separate .NET installation required.</p></div>
+    <div class="download-heading"><div><p class="eyebrow">WINDOWS AND LINUX</p><h2>Download TcpTunnel.</h2></div><p>Self-contained packages.<br>No separate .NET installation required.</p></div>
     <p id="release-status" class="release-status" role="status">Checking GitHub for downloadable releases…</p>
     <div class="download-grid">
       <article><div class="os-name"><span class="os-symbol" aria-hidden="true">⊞</span><h3>Windows</h3></div><p>Install with an MSI or EXE, or unpack a portable ZIP.</p><div id="windows-downloads" class="download-links"><a href="https://github.com/tedd/Tedd.TcpTunnel/actions/workflows/build.yml?query=branch%3Adeploy">Browse Windows builds <span aria-hidden="true">↗</span></a></div></article>
@@ -62,7 +62,7 @@
     </div>
     <div class="download-footnote"><p>Build artifacts on GitHub Actions require a GitHub account. .NET 11 is currently a release candidate.</p><a href="https://github.com/tedd/Tedd.TcpTunnel/releases">All releases <span aria-hidden="true">↗</span></a></div>
   </section>
-  <section class="wrap operational"><h2>Built for explicit control.</h2><div><p><strong>Updates stay in your hands.</strong> GitHub version checks offer an update. Downloads are verified against release checksums. Portable updates keep the previous binary; installed copies use an installer.</p><p><strong>Keep the network boundary clear.</strong> TcpTunnel forwards and compresses traffic. It does not encrypt or authenticate the tunnel. Use a trusted network or an encrypted transport such as a VPN.</p></div></section>
+  <section class="wrap operational"><h2>Updates and security.</h2><div><p><strong>GitHub updates.</strong> GitHub version checks offer an update. Downloads are verified against release checksums. Portable updates keep the previous binary; installed copies use an installer.</p><p><strong>Transport security.</strong> TcpTunnel forwards and compresses traffic. It does not encrypt or authenticate the tunnel. Use a trusted network or an encrypted transport such as a VPN.</p></div></section>
 </main>
 <footer class="wrap"><a class="brand" href="#">Tedd<span class="brand-dot">.</span>TcpTunnel</a><span>Open source. LGPL-2.1 licensed.</span><a href="https://github.com/tedd/Tedd.TcpTunnel/tree/deploy">Source &amp; documentation <span aria-hidden="true">↗</span></a></footer>
 </body></html>
