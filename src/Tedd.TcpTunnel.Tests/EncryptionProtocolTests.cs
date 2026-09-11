@@ -8,6 +8,24 @@ namespace Tedd.TcpTunnel.Tests;
 
 public sealed class EncryptionProtocolTests
 {
+    [Theory]
+    [InlineData(EncryptionAlgorithm.ChaCha20Poly1305, "1819d4cd31a5c4d0b54e1f87a8172de2")]
+    [InlineData(EncryptionAlgorithm.AesGcm, "e1b5e0e7b8e66146bf9accd951f91be9")]
+    [InlineData(EncryptionAlgorithm.AesCcm, "3ba92a5be78558ff6500acc6bb5f3cd5")]
+    public void EmptyControlKnownAnswerAndForgeryRejection(EncryptionAlgorithm algorithm, string expected)
+    {
+        if (!EncryptionOptions.IsSupported(algorithm)) return;
+        var secret = Enumerable.Range(0, 32).Select(i => (byte)i).ToArray();
+        var header = Convert.FromHexString("030000000000000000");
+        using var sender = new FrameCipher(algorithm, secret);
+        using var receiver = new FrameCipher(algorithm, secret);
+        var tag = new byte[FrameCipher.TagSize]; sender.Encrypt(header, [], tag);
+        Assert.Equal(Convert.FromHexString(expected), tag);
+        receiver.Decrypt(header, tag, []);
+        using var rejected = new FrameCipher(algorithm, secret);
+        tag[0] ^= 1;
+        Assert.ThrowsAny<CryptographicException>(() => rejected.Decrypt(header, tag, []));
+    }
     // Independent vectors: Python cryptography AEAD with HMAC-SHA256 HKDF expansion.
     [Theory]
     [InlineData(EncryptionAlgorithm.ChaCha20Poly1305, "ee4b60a2f58aa65434414d7e92448218e9b555", "e69b12e86c466dd56d609f7104b23fbd9a23b8")]

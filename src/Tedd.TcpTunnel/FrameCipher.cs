@@ -59,7 +59,14 @@ internal sealed class FrameCipher : IDisposable
         var ciphertext = output[..plaintext.Length];
         var tag = output.Slice(plaintext.Length, TagSize);
         if (_gcm is not null) _gcm.Encrypt(nonce, plaintext, ciphertext, tag, header);
-        else if (_ccm is not null) _ccm.Encrypt(nonce, plaintext, ciphertext, tag, header);
+        else if (_ccm is not null)
+        {
+            // OpenSSL distinguishes a null input/output pointer from an empty message.
+            // Back empty spans with storage so CCM processes and authenticates controls.
+            Span<byte> empty = stackalloc byte[1];
+            _ccm.Encrypt(nonce, plaintext.IsEmpty ? empty[..0] : plaintext,
+                ciphertext.IsEmpty ? empty[..0] : ciphertext, tag, header);
+        }
         else _chacha!.Encrypt(nonce, plaintext, ciphertext, tag, header);
         _sequence++;
     }
@@ -73,7 +80,12 @@ internal sealed class FrameCipher : IDisposable
             var ciphertext = input[..plaintext.Length];
             var tag = input.Slice(plaintext.Length, TagSize);
             if (_gcm is not null) _gcm.Decrypt(nonce, ciphertext, tag, plaintext, header);
-            else if (_ccm is not null) _ccm.Decrypt(nonce, ciphertext, tag, plaintext, header);
+            else if (_ccm is not null)
+            {
+                Span<byte> empty = stackalloc byte[1];
+                _ccm.Decrypt(nonce, ciphertext.IsEmpty ? empty[..0] : ciphertext, tag,
+                    plaintext.IsEmpty ? empty[..0] : plaintext, header);
+            }
             else _chacha!.Decrypt(nonce, ciphertext, tag, plaintext, header);
             _sequence++;
         }
