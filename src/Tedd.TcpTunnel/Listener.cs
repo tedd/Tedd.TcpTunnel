@@ -4,6 +4,9 @@ using System.Net.Sockets;
 
 namespace Tedd.TcpTunnel;
 
+/// <summary>Hosts one TCP forward using the same transport behavior as the executable.</summary>
+/// <remarks>Configure options before construction. Call Start once, await Ready for the bound endpoint,
+/// and cancel and await Start during application shutdown. Connection failures are isolated and logged.</remarks>
 public sealed class Listener
 {
     private readonly ForwardOptions _options;
@@ -13,12 +16,18 @@ public sealed class Listener
     private readonly TaskCompletionSource<IPEndPoint> _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _started;
     private long _nextId;
+    /// <summary>Completes with the bound endpoint after startup, or faults/cancels if startup fails.</summary>
     public Task<IPEndPoint> Ready => _ready.Task;
+    /// <summary>Current number of tracked connections, including connections negotiating or connecting.</summary>
     public int ActiveConnections => _connections.Count;
 
+    /// <summary>Validates and configures one forward. The optional event callback must be thread-safe and must not throw.</summary>
     public Listener(ForwardOptions options, Action<TunnelEvent>? log = null)
     { options.Validate(); _options = options; _log = log; _accessControl = IpAccessControl.Create(options.AccessControl); }
 
+    /// <summary>Runs acceptance and forwarding until cancellation. May only be called once.</summary>
+    /// <remarks>Start returns the service lifetime task. Await Ready separately for startup. Cancellation closes
+    /// active connections and waits for cleanup; expected shutdown cancellation is absorbed.</remarks>
     public async Task Start(CancellationToken cancellationToken = default)
     {
         if (Interlocked.Exchange(ref _started, 1) != 0) throw new InvalidOperationException("Listener can only be started once.");
@@ -138,12 +147,17 @@ public sealed class Listener
         _log?.Invoke(new(_options.Name, level, message, exception, eventName, id, source, destination, duration));
 }
 
+/// <summary>Hosts multiple forwarding listeners with coordinated startup failure and shutdown.</summary>
 public sealed class TunnelHost
 {
+    /// <summary>Configured listeners in forward order; use their Ready tasks to observe startup.</summary>
     public IReadOnlyList<Listener> Listeners { get; }
+    /// <summary>Validates the options and creates a listener for each forward. Logging is delivered to the supplied callback.</summary>
     public TunnelHost(TunnelOptions options, Action<TunnelEvent>? log = null)
     { options.Validate(); Listeners = options.Forwards.Select(f => new Listener(f, log)).ToArray(); }
 
+    /// <summary>Runs all listeners until cancellation or a listener failure, then awaits coordinated cleanup.</summary>
+    /// <remarks>Does not perform update checks, configure log sinks, or register an operating system service.</remarks>
     public async Task RunAsync(CancellationToken token = default)
     {
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(token);

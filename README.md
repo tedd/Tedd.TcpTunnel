@@ -8,6 +8,18 @@ multiple forwarding setups, and concurrent connections.
 [Downloads](https://github.com/tedd/Tedd.TcpTunnel/releases) ·
 [Build artifacts](https://github.com/tedd/Tedd.TcpTunnel/actions/workflows/build.yml?query=branch%3Adeploy)
 
+## Application integration
+
+The **Tedd.TcpTunnel** library packages both client and server APIs for NuGet.
+Embed forwarding with `TunnelHost`/`Listener`, connect directly with
+`TunnelClient.ConnectAsync`, or handle an accepted connection with `TunnelServer.AcceptAsync`.
+The direct APIs return a duplex `Stream` with compression, authenticated encryption,
+and half-close support, without application-side TCP connections.
+
+See the [API guide and examples](docs/api.md) and [runnable sample](samples/LibraryDemo).
+The library targets .NET 11. Package publishing follows the GitHub Release workflow;
+maintainer setup is documented in the API guide.
+
 ## Install
 
 | Platform | Architectures | Packages |
