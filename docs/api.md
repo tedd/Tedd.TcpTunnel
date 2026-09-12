@@ -164,7 +164,7 @@ leave ownership with the caller. The surrounding `using` above covers either out
 
 For a long-running service, accept connections repeatedly, limit concurrency, give every
 connection its own handler and stream, isolate handler failures, and await handlers during
-shutdown. The [runnable library sample](https://github.com/tedd/Tedd.TcpTunnel/tree/main/samples/LibraryDemo)
+shutdown. The [runnable library sample](https://github.com/tedd/Tedd.TcpTunnel/tree/deploy/samples/LibraryDemo)
 demonstrates a bounded concurrent server, a direct client, and embedded forwarding.
 
 You can pass the returned object anywhere a duplex `System.IO.Stream` is accepted. The
@@ -206,7 +206,7 @@ including authenticated heartbeat and FIN records. Availability depends on the O
 The shared-key protocol does not provide forward secrecy. Compression leaks information
 through lengths; use `Compression=None` if attacker-controlled text shares a context with
 secrets. PCAP capture contains plaintext application data. See the repository's
-[encryption guide](https://github.com/tedd/Tedd.TcpTunnel#encrypt-a-link) for key rotation and protocol details.
+[encryption guide](https://github.com/tedd/Tedd.TcpTunnel/blob/deploy/README.md#encrypt-a-link) for key rotation and protocol details.
 
 ## Stream contract and lifecycle
 
@@ -262,7 +262,7 @@ forwarding with batching and dedicated pump threads, use `ForwardOptions` and `L
 
 For full forwarding, `ForwardOptions.Validate()` and `TunnelOptions.Validate()` can check
 configuration without opening sockets. Direct APIs validate `TunnelStreamOptions` before
-connection setup. The repository [configuration reference](https://github.com/tedd/Tedd.TcpTunnel#configuration-and-command-line)
+connection setup. The repository [configuration reference](https://github.com/tedd/Tedd.TcpTunnel/blob/deploy/README.md#configuration-and-command-line)
 also describes socket tuning, listener limits and forwarding behavior.
 
 ## Errors and diagnostics
