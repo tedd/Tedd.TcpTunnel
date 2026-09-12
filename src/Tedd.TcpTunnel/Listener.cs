@@ -17,6 +17,20 @@ public sealed class Listener
     private readonly TaskCompletionSource<IPEndPoint> _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _started;
     private long _nextId;
+    private readonly TrafficCounter _outbound = new();
+    private readonly TrafficCounter _inbound = new();
+    private readonly ConcurrentDictionary<long, CancellationTokenSource> _connectionStops = new();
+
+    public ForwardTelemetry GetTelemetry() => new(_options.Name, _options.Mode.ToString(),
+        Ready.IsCompletedSuccessfully ? Ready.Result.ToString() : $"{_options.ListenAddress}:{_options.ListenPort}",
+        $"{_options.RemoteHost}:{_options.RemotePort}", ActiveConnections, _outbound.Snapshot(), _inbound.Snapshot());
+
+    /// <summary>Disconnects current sessions; listeners stay bound and clients may reconnect.</summary>
+    public void RestartConnections()
+    {
+        foreach (var stop in _connectionStops.Values)
+            try { stop.Cancel(); } catch (ObjectDisposedException) { }
+    }
     /// <summary>Completes with the bound endpoint after startup, or faults/cancels if startup fails.</summary>
     public Task<IPEndPoint> Ready => _ready.Task;
     /// <summary>Current number of tracked connections, including connections negotiating or connecting.</summary>
@@ -60,9 +74,11 @@ public sealed class Listener
                 var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 async Task ProcessTrackedAsync()
                 {
+                    using var connectionStop = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+                    _connectionStops[id] = connectionStop;
                     await start.Task.ConfigureAwait(false);
-                    try { await ProcessAsync(id, accepted, capture, certificate, stop.Token).ConfigureAwait(false); }
-                    finally { limit.Release(); _connections.TryRemove(id, out var ignored); }
+                    try { await ProcessAsync(id, accepted, capture, certificate, connectionStop.Token).ConfigureAwait(false); }
+                    finally { _connectionStops.TryRemove(id, out _); limit.Release(); _connections.TryRemove(id, out _); }
                 }
                 var task = ProcessTrackedAsync();
                 _connections[id] = task;
@@ -122,7 +138,8 @@ public sealed class Listener
                 if (clientSession is not null) Log("debug", "handshake-completed", "Outgoing tunnel handshake completed.", id: id, source: source, destination: destination);
                 Log("info", "connection-established", $"Connection established from {source} to {destination}.", id: id, source: source, destination: destination);
                 await new TunnelConnection(accepted, remote, _options, capture, serverSession ?? clientSession, certificate,
-                    message => Log("debug", "tls-established", message, id: id, source: source, destination: destination)).RunAsync(token).ConfigureAwait(false);
+                    message => Log("debug", "tls-established", message, id: id, source: source, destination: destination),
+                    _outbound, _inbound).RunAsync(token).ConfigureAwait(false);
                 Log("info", "connection-closed", "Connection closed.", id: id, source: source, destination: destination,
                     duration: Environment.TickCount64 - started);
             }

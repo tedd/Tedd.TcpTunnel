@@ -43,8 +43,27 @@ jobs:
           path: artifacts/coverage
       - shell: pwsh
         run: ./scripts/check-coverage.ps1
+  control-panel:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          global-json-file: global.json
+      - run: dotnet workload install maui-windows
+      - name: Exercise MAUI configuration, traffic, and daemon restart
+        shell: pwsh
+        run: ./scripts/smoke-control-panel.ps1
+      - uses: actions/upload-artifact@v7.0.1
+        if: always()
+        with:
+          name: control-panel-smoke
+          path: |
+            artifacts/panel-smoke/*.png
+            artifacts/panel-smoke/result.txt
+          if-no-files-found: error
   package:
-    needs: coverage
+    needs: [coverage, control-panel]
     strategy:
       fail-fast: false
       matrix:
@@ -59,6 +78,9 @@ jobs:
       - uses: actions/setup-dotnet@v6.0.0
         with:
           global-json-file: global.json
+      - name: Install MAUI Windows workload
+        if: runner.os == 'Windows'
+        run: dotnet workload install maui-windows
       - name: Determine version
         shell: pwsh
         env:

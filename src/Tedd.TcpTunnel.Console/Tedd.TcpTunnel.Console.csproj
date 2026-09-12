@@ -5,7 +5,7 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../Tedd.TcpTunnel/Tedd.TcpTunnel.csproj" />
-    <InternalsVisibleTo Include="Tedd.TcpTunnel.Tests" />
+    <ProjectReference Include="../Tedd.TcpTunnel/Tedd.TcpTunnel.csproj" /><ProjectReference Include="../Tedd.TcpTunnel.Management/Tedd.TcpTunnel.Management.csproj" />
+    <InternalsVisibleTo Include="Tedd.TcpTunnel.Tests" /><InternalsVisibleTo Include="Tedd.TcpTunnel.ControlPanel" />
   </ItemGroup>
 </Project>

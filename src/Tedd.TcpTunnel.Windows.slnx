@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Tedd.TcpTunnel/Tedd.TcpTunnel.csproj" />
+  <Project Path="Tedd.TcpTunnel.Management/Tedd.TcpTunnel.Management.csproj" />
+  <Project Path="Tedd.TcpTunnel.Console/Tedd.TcpTunnel.Console.csproj" />
+  <Project Path="Tedd.TcpTunnel.ControlPanel/Tedd.TcpTunnel.ControlPanel.csproj" />
+  <Project Path="Tedd.TcpTunnel.Tests/Tedd.TcpTunnel.Tests.csproj" />
+</Solution>

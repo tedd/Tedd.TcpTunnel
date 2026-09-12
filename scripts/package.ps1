@@ -12,6 +12,13 @@ $packages = Join-Path $root 'artifacts/packages'
 New-Item -ItemType Directory -Force -Path $output, $packages | Out-Null
 & $Dotnet publish (Join-Path $root 'src/Tedd.TcpTunnel.Console') -c Release -r $Runtime --self-contained true '-p:PublishSingleFile=true' '-p:DebugType=None' '-p:DebugSymbols=false' "-p:Version=$Version" "-p:NuGetLockFilePath=packages.$Runtime.lock.json" "-p:RestoreLockedMode=$(!$UpdateLocks)" -o $output
 if ($LASTEXITCODE) { throw 'Publish failed.' }
+$panelName = 'Tedd.TcpTunnel.ControlPanel.exe'
+if ($Runtime.StartsWith('win-')) {
+    $panelOutput = Join-Path $root "artifacts/control-panel/$Runtime"
+    & $Dotnet publish (Join-Path $root 'src/Tedd.TcpTunnel.ControlPanel') -c Release -r $Runtime --self-contained true '-p:PublishSingleFile=true' '-p:IncludeNativeLibrariesForSelfExtract=true' '-p:EnableCompressionInSingleFile=true' '-p:DebugType=None' '-p:DebugSymbols=false' "-p:Version=$Version" "-p:NuGetLockFilePath=packages.$Runtime.lock.json" "-p:RestoreLockedMode=$(!$UpdateLocks)" -o $panelOutput
+    if ($LASTEXITCODE) { throw 'Control panel publish failed.' }
+    Copy-Item -LiteralPath (Join-Path $panelOutput $panelName) -Destination $output
+}
 Copy-Item -LiteralPath (Join-Path $root 'LICENSE'), (Join-Path $root 'THIRD-PARTY-NOTICES.txt'), (Join-Path $root 'README.md'), (Join-Path $root 'tunnel.example.json') -Destination $output
 Set-Content -LiteralPath (Join-Path $output 'install-kind.txt') -Value 'zip' -NoNewline
 $executable = if ($Runtime.StartsWith('win-')) { 'tcptunnel.exe' } else { 'tcptunnel' }
@@ -22,7 +29,9 @@ Add-Type -AssemblyName System.IO.Compression
 if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath }
 $zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
 try {
-    foreach ($name in @($executable, 'LICENSE', 'THIRD-PARTY-NOTICES.txt', 'README.md', 'tunnel.example.json', 'install-kind.txt')) {
+    $contents = @($executable, 'LICENSE', 'THIRD-PARTY-NOTICES.txt', 'README.md', 'tunnel.example.json', 'install-kind.txt')
+    if ($Runtime.StartsWith('win-')) { $contents += $panelName }
+    foreach ($name in $contents) {
         $entry = [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, (Join-Path $output $name), $name, [System.IO.Compression.CompressionLevel]::Optimal)
         if ($name -eq $executable -and $Runtime.StartsWith('linux-')) { $entry.ExternalAttributes = 0x81ed0000 }
     }

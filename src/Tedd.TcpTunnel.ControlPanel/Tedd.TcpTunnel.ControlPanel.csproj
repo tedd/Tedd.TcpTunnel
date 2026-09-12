@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0-windows10.0.19041.0</TargetFramework>
+    <OutputType>WinExe</OutputType><IsPackable>false</IsPackable>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <ApplicationTitle>Tedd TcpTunnel</ApplicationTitle>
+    <ApplicationId>net.tedd.tcptunnel</ApplicationId>
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <WindowsPackageType>None</WindowsPackageType>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <ApplicationManifest Condition="'$(ApplicationManifest)' == ''">Platforms/Windows/app.manifest</ApplicationManifest>
+    <DefineConstants Condition="'$(ControlPanelSmoke)' == 'true'">$(DefineConstants);CONTROL_PANEL_SMOKE</DefineConstants>
+    <PublishTrimmed>false</PublishTrimmed><EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition><DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <MauiIcon Include="Resources/AppIcon/appicon.svg" Color="#172431" />
+    <PackageReference Include="Microsoft.Maui.Controls" Version="11.0.0-preview.7.26406.9" />
+    <ProjectReference Include="../Tedd.TcpTunnel.Management/Tedd.TcpTunnel.Management.csproj" /><ProjectReference Include="../Tedd.TcpTunnel.Console/Tedd.TcpTunnel.Console.csproj" />
+  </ItemGroup>
+</Project>

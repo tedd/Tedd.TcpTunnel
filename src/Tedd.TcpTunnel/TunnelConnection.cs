@@ -6,7 +6,8 @@ using System.Security.Cryptography.X509Certificates;
 namespace Tedd.TcpTunnel;
 
 internal sealed class TunnelConnection(Socket local, Socket remote, ForwardOptions options, PcapWriter? capture, TunnelSession? session,
-    X509Certificate2? certificate = null, Action<string>? tlsLog = null)
+    X509Certificate2? certificate = null, Action<string>? tlsLog = null,
+    TrafficCounter? outbound = null, TrafficCounter? inbound = null)
 {
     private bool _receivedFin;
     private long _lastActivity = Environment.TickCount64;
@@ -116,8 +117,13 @@ internal sealed class TunnelConnection(Socket local, Socket remote, ForwardOptio
                     var length = codec!.Encode(buffer.AsSpan(0, read), encoded!, Protocol.HeaderSize);
                     Protocol.WriteHeader(encoded!, FrameType.Data, read, length);
                     await SendFrameAsync(length).ConfigureAwait(false);
+                    (source == local ? outbound : inbound)?.Add(read, length, options.Compression != Codec.None);
                 }
-                else await writer.SendAsync(buffer.AsMemory(0, read), token).ConfigureAwait(false);
+                else
+                {
+                    await writer.SendAsync(buffer.AsMemory(0, read), token).ConfigureAwait(false);
+                    (source == local ? outbound : inbound)?.Add(read, read, false);
+                }
             }
             if (framed)
             {
@@ -168,6 +174,7 @@ internal sealed class TunnelConnection(Socket local, Socket remote, ForwardOptio
                 Activity();
                 capture?.Write(sourceEndpoint, destinationEndpoint, decoded.AsSpan(0, raw), ref sequence);
                 await writer.SendAsync(decoded.AsMemory(0, raw), token).ConfigureAwait(false);
+                (source == local ? outbound : inbound)?.Add(raw, wire, options.Compression != Codec.None);
             }
         }
         finally

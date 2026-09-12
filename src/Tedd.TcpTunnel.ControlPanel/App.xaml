@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui" xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml" x:Class="Tedd.TcpTunnel.ControlPanel.App">
+ <Application.Resources><ResourceDictionary>
+  <Color x:Key="Canvas">#EEF2F3</Color><Color x:Key="Surface">#FAFBFB</Color><Color x:Key="Line">#CAD5DA</Color>
+  <Color x:Key="Accent">#0B8045</Color><Color x:Key="Ink">#172630</Color><Color x:Key="Muted">#60727D</Color>
+  <Color x:Key="ButtonSurface">#DFE7EA</Color><Color x:Key="Field">#E5EBED</Color><Color x:Key="Sidebar">#E1E8EA</Color>
+  <Color x:Key="PrimaryText">#FFFFFF</Color>
+  <Style TargetType="Label"><Setter Property="TextColor" Value="{DynamicResource Ink}"/><Setter Property="FontFamily" Value="Segoe UI"/><Setter Property="FontSize" Value="13"/></Style>
+  <Style TargetType="Button"><Setter Property="BackgroundColor" Value="{DynamicResource ButtonSurface}"/><Setter Property="TextColor" Value="{DynamicResource Ink}"/><Setter Property="CornerRadius" Value="9"/><Setter Property="FontSize" Value="12"/><Setter Property="Padding" Value="16,11"/><Setter Property="MinimumHeightRequest" Value="38"/></Style>
+  <Style TargetType="Entry"><Setter Property="TextColor" Value="{DynamicResource Ink}"/><Setter Property="PlaceholderColor" Value="{DynamicResource Muted}"/><Setter Property="BackgroundColor" Value="{DynamicResource Field}"/><Setter Property="FontSize" Value="12"/></Style>
+  <Style TargetType="Editor"><Setter Property="TextColor" Value="{DynamicResource Ink}"/><Setter Property="BackgroundColor" Value="{DynamicResource Field}"/><Setter Property="FontSize" Value="12"/></Style>
+  <Style TargetType="Picker"><Setter Property="TextColor" Value="{DynamicResource Ink}"/><Setter Property="TitleColor" Value="{DynamicResource Muted}"/><Setter Property="BackgroundColor" Value="{DynamicResource Field}"/><Setter Property="FontSize" Value="12"/></Style>
+  <Style TargetType="Switch"><Setter Property="OnColor" Value="{DynamicResource Accent}"/></Style>
+  <Style x:Key="Card" TargetType="Border"><Setter Property="Stroke" Value="{DynamicResource Line}"/><Setter Property="Background" Value="{DynamicResource Surface}"/><Setter Property="StrokeShape" Value="RoundRectangle 14"/><Setter Property="Padding" Value="18"/></Style>
+  <Style x:Key="Caption" TargetType="Label"><Setter Property="TextColor" Value="{DynamicResource Muted}"/><Setter Property="FontSize" Value="11"/><Setter Property="CharacterSpacing" Value="1"/></Style>
+ </ResourceDictionary></Application.Resources>
+</Application>

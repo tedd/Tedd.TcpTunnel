@@ -8,6 +8,63 @@ multiple forwarding setups, and concurrent connections.
 [Downloads](https://github.com/tedd/Tedd.TcpTunnel/releases) ·
 [Build artifacts](https://github.com/tedd/Tedd.TcpTunnel/actions/workflows/build.yml?query=branch%3Adeploy)
 
+## Windows control panel
+
+Launch **Tedd TcpTunnel** from the Start menu, or run `Tedd.TcpTunnel.ControlPanel.exe`
+beside `tcptunnel.exe` in the Windows portable package. The .NET MAUI app uses the
+Tedd Defrag light/dark palette and follows the Windows theme unless you select an override.
+It requests administrator access to manage services, protected configuration files, and firewall rules.
+
+![MAUI control panel displaying live outbound and inbound LZ4 throughput](website/control-panel.png)
+
+The screenshot shows real loopback traffic. Rates depend on the connection and data.
+
+- **Forwards:** add or remove forwards and edit every supported option, including endpoints,
+  compression, encryption, TLS, ACLs, retries, batching, sockets, and packet capture.
+  Lists and key maps use JSON arrays and objects; combined flags accept comma-separated names.
+- **Application:** choose a named service, open a configuration file, configure logging and
+  update checks, and install or uninstall the Windows service. New configurations default to
+  `%ProgramData%\Tedd.TcpTunnel\tunnel.json`.
+- **Save configuration:** validates and atomically saves the file, then asks whether to restart
+  the service/app daemon, disconnect existing connections only, or apply later. Disconnecting
+  sessions keeps the current settings; a full runtime restart loads all saved options.
+  A pending indicator identifies saved settings that are not active. Concurrent file edits
+  are rejected until you reload.
+- **Windows service:** view its actual Windows status, start, stop, or restart it.
+  **Enable Windows startup** installs an automatic service if needed, or enables automatic
+  startup for the selected installed service. Disabling startup changes it to manual.
+- **App daemon:** runs the forwarding engine inside the control panel. Minimize or close the
+  window to keep it in the notification area. Use the tray menu to restore it or exit;
+  exiting asks to stop an active app daemon. An installed service continues independently.
+- **Firewall:** preview, apply, update, or remove scoped inbound TCP rules for the selected
+  runtime. Defaults allow the local subnet on Domain/Private profiles. Loopback listeners and
+  dynamic ports are skipped. Select Public or broader peers explicitly when needed.
+  Rules are tied to the executable, listener address, and port; source ACLs remain effective.
+
+### Live throughput and compression
+
+Select **All forwards** or one forward on **Overview**. The two graphs show listener-to-destination (**outbound**)
+and destination-to-listener (**inbound**) traffic. Hover or touch a sample to inspect original
+and encoded MB/s, compressed and plain payload MB/s, and the original-to-encoded compression
+ratio. The green and cyan areas stack to encoded throughput; the line shows original data.
+MB means 1,000,000 bytes. A ratio below 1 indicates expansion; idle samples have no ratio.
+
+The panel samples cumulative counters about once per second and retains up to 120 samples.
+Counters measure successfully forwarded payload after encoding and before decoding. They exclude
+TCP/IP, TLS, protocol headers, heartbeats, and authentication tags. A compressed payload can
+therefore be larger than its original data. Raw/SOCKS payload is counted as plain.
+Restarting a daemon or losing the control connection resets the displayed history.
+
+The daemon exposes versioned, length-bounded JSON messages over a local named pipe whenever
+it runs with `--config`. Windows service pipes allow LocalSystem and elevated administrators
+and deny network access; foreground pipes require the same user/elevation. The panel verifies
+the service pipe's process ID against Windows before transmitting configuration. Status responses
+contain counters and endpoints, while configuration is fetched through a separate operation.
+The service never accepts an arbitrary file path from a control request.
+
+The portable CLI updater replaces `tcptunnel.exe` only. To upgrade the portable control panel,
+exit it and replace both executables from the Windows ZIP, or use the MSI/EXE installer.
+
 ## Application integration
 
 The **Tedd.TcpTunnel** library packages both client and server APIs for NuGet.
@@ -125,7 +182,8 @@ The Linux commands require `curl` and `unzip`, install under `~/.local/share/tcp
 and link the executable into `~/.local/bin`. Ensure `~/.local/bin` is on `PATH`.
 
 Packages are self-contained: a separate .NET installation is unnecessary. The portable
-application is a single executable, accompanied by documentation, a license, an example
+CLI is a single executable; Windows packages also include the self-contained MAUI control panel.
+Both are accompanied by documentation, a license, an example
 configuration, and an installation marker. Native runtime components may extract on first run.
 
 Windows packages are unsigned unless the release maintainer signs them.
@@ -749,6 +807,18 @@ selection uses the MSI upgrade path. `Update.InstallKind` can select `msi`, `exe
 elevation. In-place ZIP updates require a published single-file build.
 
 ## Build, test, benchmark, and release
+
+On Windows, build the MAUI control panel with the repository SDK and the Windows workload:
+
+```powershell
+dotnet workload install maui-windows
+dotnet build src/Tedd.TcpTunnel.Windows.slnx -c Release
+./scripts/smoke-control-panel.ps1
+```
+
+The UI smoke script runs loopback traffic, verifies configuration and daemon restart,
+and writes screenshots under `artifacts/panel-smoke`. The main cross-platform solution
+builds the CLI, management protocol, library, and tests without a MAUI workload.
 
 Install the SDK pinned in `global.json`: **11.0.100-rc.1.26425.128**.
 

@@ -84,8 +84,7 @@ internal static class Program
             var monitor = MonitorUpdatesAsync(updater, command.Options.Update, stop.Token, logger.Write);
             try
             {
-                await new TunnelHost(command.Options, logger.Write)
-                    .RunAsync(stop.Token).ConfigureAwait(false);
+                await ManagedDaemon.RunAsync(command, logger.Write, stop.Token).ConfigureAwait(false);
             }
             finally { await stop.CancelAsync().ConfigureAwait(false); await monitor.ConfigureAwait(false); }
             return 0;

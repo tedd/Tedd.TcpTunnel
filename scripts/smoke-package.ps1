@@ -19,7 +19,9 @@ $generatedKey = & $binary --generate-key
 if ($LASTEXITCODE -or $generatedKey.Trim().Length -ne 44 -or [Convert]::FromBase64String($generatedKey.Trim()).Length -ne 32) { throw 'Packaged key generation failed.' }
 & $binary --mode Client --encryption:algorithm AesGcm --encryption:key $generatedKey.Trim() --check
 if ($LASTEXITCODE) { throw 'Packaged encryption configuration failed.' }
-foreach ($file in @('LICENSE', 'THIRD-PARTY-NOTICES.txt', 'README.md', 'install-kind.txt')) {
+$distributionFiles = @('LICENSE', 'THIRD-PARTY-NOTICES.txt', 'README.md', 'install-kind.txt')
+if ($Runtime.StartsWith('win-')) { $distributionFiles += 'Tedd.TcpTunnel.ControlPanel.exe' }
+foreach ($file in $distributionFiles) {
     if (!(Test-Path -LiteralPath (Join-Path $directory $file))) { throw "Missing distribution file: $file" }
 }
 $originalHash = (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash

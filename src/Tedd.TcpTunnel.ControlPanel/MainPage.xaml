@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui" xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+ x:Class="Tedd.TcpTunnel.ControlPanel.MainPage" BackgroundColor="{DynamicResource Canvas}">
+ <Grid ColumnDefinitions="214,*" RowDefinitions="*,Auto">
+  <Grid BackgroundColor="{DynamicResource Sidebar}" Padding="22,30" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="30">
+   <VerticalStackLayout Spacing="7"><Label Text="Tedd TcpTunnel" FontSize="21" FontAttributes="Bold"/><Label Text="CONNECTION CONTROL" Style="{StaticResource Caption}"/></VerticalStackLayout>
+   <VerticalStackLayout Grid.Row="1" Spacing="10">
+    <Button Text="Overview" Clicked="OnOverview"/><Button Text="Forwards" Clicked="OnForwards"/><Button Text="Application" Clicked="OnApplication"/><Button Text="Firewall" Clicked="OnFirewall"/>
+   </VerticalStackLayout>
+   <VerticalStackLayout Grid.Row="3" Spacing="14">
+    <Label Text="APPEARANCE" Style="{StaticResource Caption}"/><Picker x:Name="ThemePicker" SelectedIndexChanged="OnThemeChanged"/>
+    <Button Text="Minimize to tray" Clicked="OnTray"/><Button Text="Exit" Clicked="OnExit"/>
+    <Label Text="Local administration&#10;Windows service + app daemon" FontSize="10" TextColor="{DynamicResource Muted}"/>
+   </VerticalStackLayout>
+  </Grid>
+  <Grid Grid.Column="1" Padding="28,24" RowDefinitions="Auto,Auto,*" RowSpacing="16">
+   <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+    <VerticalStackLayout Spacing="5"><Label x:Name="PageTitle" Text="Tunnel overview" FontSize="30" FontAttributes="Bold"/><Label x:Name="PageSubtitle" Text="Live connections, payload throughput, and compression." TextColor="{DynamicResource Muted}"/></VerticalStackLayout>
+    <HorizontalStackLayout Grid.Column="1" Spacing="8" VerticalOptions="Center"><Button Text="Reload configuration" Clicked="OnReload"/><Button Text="Save configuration" Clicked="OnSave" BackgroundColor="{DynamicResource Accent}" TextColor="{DynamicResource PrimaryText}"/></HorizontalStackLayout>
+   </Grid>
+   <Border Grid.Row="1" Style="{StaticResource Card}">
+    <Grid ColumnDefinitions="190,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="18" RowSpacing="7">
+     <Picker x:Name="RunMode" SelectedIndexChanged="OnRunModeChanged"/>
+     <VerticalStackLayout Grid.Column="1" Spacing="5"><Label x:Name="RuntimeStatus" Text="Checking Windows service…" FontSize="16" FontAttributes="Bold"/><Label x:Name="RuntimeDetail" Text="Tedd.TcpTunnel" FontSize="11" TextColor="{DynamicResource Muted}"/></VerticalStackLayout>
+     <HorizontalStackLayout Grid.Column="2" Spacing="7"><Button Text="Start" Clicked="OnStart"/><Button Text="Stop" Clicked="OnStop"/><Button Text="Restart" Clicked="OnRestart"/></HorizontalStackLayout>
+     <Label x:Name="PendingLabel" Grid.Row="1" Grid.ColumnSpan="3" Text="Configuration is loaded when the daemon starts." FontSize="11" TextColor="{DynamicResource Muted}"/>
+    </Grid>
+   </Border>
+   <ScrollView Grid.Row="2" x:Name="OverviewContent">
+    <VerticalStackLayout Spacing="16">
+     <Grid ColumnDefinitions="*,280" ColumnSpacing="16">
+      <Border Style="{StaticResource Card}"><Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="8">
+       <Label Text="TRAFFIC BY FORWARD" Style="{StaticResource Caption}"/><Label x:Name="ConnectionCount" Grid.Column="1" Text="— connections" FontSize="12" TextColor="{DynamicResource Accent}"/>
+       <Picker x:Name="TrafficForward" Grid.Row="1" SelectedIndexChanged="OnTrafficForwardChanged"/><Button Grid.Row="1" Grid.Column="1" Text="Restart connections" Clicked="OnResetConnections"/>
+      </Grid></Border>
+      <Border Grid.Column="1" Style="{StaticResource Card}"><VerticalStackLayout Spacing="7"><Label Text="WINDOWS STARTUP" Style="{StaticResource Caption}"/><Label x:Name="StartupStatus" Text="Service not installed" FontSize="12"/><Button x:Name="StartupButton" Text="Enable Windows startup" Clicked="OnStartup"/></VerticalStackLayout></Border>
+     </Grid>
+     <Border Style="{StaticResource Card}"><VerticalStackLayout x:Name="OutboundContainer"/></Border>
+     <Border Style="{StaticResource Card}"><VerticalStackLayout x:Name="InboundContainer"/></Border>
+     <Border Style="{StaticResource Card}"><VerticalStackLayout Spacing="8"><Label Text="LISTENERS" Style="{StaticResource Caption}"/><VerticalStackLayout x:Name="ListenerList" Spacing="8"/></VerticalStackLayout></Border>
+    </VerticalStackLayout>
+   </ScrollView>
+   <ScrollView Grid.Row="2" x:Name="ForwardsContent" IsVisible="False">
+    <VerticalStackLayout Spacing="16"><Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+     <Picker x:Name="EditForward" SelectedIndexChanged="OnEditForwardChanged"/><Button Grid.Column="1" Text="Add forward" Clicked="OnAddForward"/><Button Grid.Column="2" Text="Remove forward" Clicked="OnRemoveForward"/>
+    </Grid><Label Text="Client/Server pairs must use matching compression and encryption settings. Outbound means listener → destination." FontSize="11" TextColor="{DynamicResource Muted}"/><ContentView x:Name="ForwardFormHost"/></VerticalStackLayout>
+   </ScrollView>
+   <ScrollView Grid.Row="2" x:Name="ApplicationContent" IsVisible="False">
+    <VerticalStackLayout Spacing="16">
+     <Border Style="{StaticResource Card}"><VerticalStackLayout Spacing="12">
+      <Label Text="SERVICE AND CONFIGURATION" Style="{StaticResource Caption}"/>
+      <Label Text="Service name"/><Entry x:Name="ServiceName" Text="Tedd.TcpTunnel"/><Button Text="Connect to service" Clicked="OnConnectService"/>
+      <Label Text="Configuration file"/><Entry x:Name="ConfigPath"/><Button Text="Open configuration…" Clicked="OnOpenConfig"/>
+      <Label Text="Service executable"/><Entry x:Name="DaemonPath"/>
+      <Label Text="Windows startup installs an automatic service. App daemon runs in this control panel and stops when you exit. Closing or minimizing the window keeps it in the tray." FontSize="12" TextColor="{DynamicResource Muted}"/>
+      <HorizontalStackLayout Spacing="8"><Button Text="Install service" Clicked="OnInstallService"/><Button Text="Uninstall service" Clicked="OnUninstallService"/></HorizontalStackLayout>
+     </VerticalStackLayout></Border>
+     <ContentView x:Name="ApplicationFormHost"/>
+    </VerticalStackLayout>
+   </ScrollView>
+   <ScrollView Grid.Row="2" x:Name="FirewallContent" IsVisible="False">
+    <VerticalStackLayout Spacing="16">
+     <Border Style="{StaticResource Card}"><VerticalStackLayout Spacing="12">
+      <Label Text="WINDOWS FIREWALL" Style="{StaticResource Caption}"/>
+      <Label Text="Allow inbound TCP only for configured non-loopback listeners. Select trusted remote addresses and the network profiles where access is required." TextColor="{DynamicResource Muted}"/>
+      <Label Text="Profiles"/><Picker x:Name="FirewallProfiles"/>
+      <Label Text="Remote addresses: LocalSubnet, an IP/CIDR list separated by commas, or any"/><Entry x:Name="FirewallPeers" Text="LocalSubnet"/>
+      <HorizontalStackLayout Spacing="8"><Button Text="Preview rules" Clicked="OnPreviewFirewall"/><Button Text="Apply rules" Clicked="OnApplyFirewall"/><Button Text="Remove rules" Clicked="OnRemoveFirewall"/><Button Text="Windows Firewall…" Clicked="OnOpenFirewall"/></HorizontalStackLayout>
+      <Editor x:Name="FirewallPreview" IsReadOnly="True" HeightRequest="260" FontFamily="Consolas"/>
+      <Label Text="Loopback and port 0 need no fixed inbound rule. Source ACLs still apply. Public networks are excluded by default; outbound restrictions remain under Windows policy. The control channel uses a local named pipe." FontSize="11" TextColor="{DynamicResource Muted}"/>
+     </VerticalStackLayout></Border>
+    </VerticalStackLayout>
+   </ScrollView>
+  </Grid>
+  <Grid Grid.Row="1" Grid.ColumnSpan="2" BackgroundColor="{DynamicResource Sidebar}" Padding="22,9" ColumnDefinitions="*,Auto"><Label x:Name="Message" Text="Ready" FontSize="11"/><Label Grid.Column="1" Text="Tedd.TcpTunnel · MB = 1,000,000 bytes" FontSize="10" TextColor="{DynamicResource Muted}"/></Grid>
+ </Grid>
+</ContentPage>

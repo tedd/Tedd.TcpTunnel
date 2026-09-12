@@ -4,11 +4,19 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of Tedd.TcpTunnel is already installed." Schedule="afterInstallInitialize" />
     <MediaTemplate EmbedCab="yes" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/tedd/Tedd.TcpTunnel" />
+    <Icon Id="ControlPanelIcon.ico" SourceFile="ControlPanel.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ControlPanelIcon.ico" />
+    <StandardDirectory Id="ProgramMenuFolder" />
     <StandardDirectory Id="ProgramFiles6432Folder">
       <Directory Id="INSTALLFOLDER" Name="Tedd.TcpTunnel">
         <Component Id="Application">
           <File Id="TunnelExecutable" Source="$(var.PublishDirectory)\tcptunnel.exe" KeyPath="yes" />
           <Environment Id="ApplicationPath" Name="PATH" Value="[INSTALLFOLDER]" Part="last" Action="set" System="yes" />
+        </Component>
+        <Component Id="ControlPanel">
+          <File Id="ControlPanelExecutable" Source="$(var.PublishDirectory)\Tedd.TcpTunnel.ControlPanel.exe" KeyPath="yes">
+            <Shortcut Id="ControlPanelShortcut" Directory="ProgramMenuFolder" Name="Tedd TcpTunnel" Advertise="yes" WorkingDirectory="INSTALLFOLDER" Icon="ControlPanelIcon.ico" />
+          </File>
         </Component>
         <Component Id="ExampleConfiguration"><File Source="..\..\tunnel.example.json" /></Component>
         <Component Id="License"><File Source="..\..\LICENSE" /></Component>
@@ -17,7 +25,7 @@
       </Directory>
     </StandardDirectory>
     <Feature Id="Main" Title="Tedd.TcpTunnel" Level="1">
-      <ComponentRef Id="Application" /><ComponentRef Id="ExampleConfiguration" />
+      <ComponentRef Id="Application" /><ComponentRef Id="ControlPanel" /><ComponentRef Id="ExampleConfiguration" />
       <ComponentRef Id="License" /><ComponentRef Id="InstallationKind" />
       <ComponentRef Id="ThirdPartyNotices" />
     </Feature>
