@@ -492,3 +492,14 @@
   }
 
 }
+
+.field-grid label[hidden] {
+  display: none;
+}
+
+.command-panel #command-note {
+  margin: 12px 22px 20px;
+  color: var(--muted);
+  font-size: .82rem;
+  line-height: 1.65;
+}

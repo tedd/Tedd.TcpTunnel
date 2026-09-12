@@ -8,7 +8,7 @@ internal enum ServiceOperation { None, Run, Install, Uninstall }
 
 internal sealed record Command(TunnelOptions Options, bool Help, bool Version, bool Check, string? WriteConfig,
     bool CheckUpdate, bool UpdateNow, bool Yes, bool GenerateKey, string? ConfigPath, ServiceOperation Service,
-    string ServiceName);
+    string ServiceName, string? GenerateCertificate = null);
 
 internal static class Configuration
 {
@@ -24,7 +24,7 @@ internal static class Configuration
 
     public static Command Parse(string[] args)
     {
-        string? config = null, write = null;
+        string? config = null, write = null, generateCertificate = null;
         var serviceName = "Tedd.TcpTunnel";
         var service = ServiceOperation.None;
         bool help = false, version = false, check = false, checkUpdate = false, update = false, yes = false, generateKey = false;
@@ -40,6 +40,7 @@ internal static class Configuration
             switch (key)
             {
                 case "generate-key": generateKey = true; break;
+                case "generate-certificate": generateCertificate = Value(); break;
                 case "debug": overrides.Add(("logging:level", "Debug")); break;
                 case "log-file": overrides.Add(("logging:file", Value())); break;
                 case "help": help = true; break;
@@ -102,7 +103,18 @@ internal static class Configuration
             Set(root, path, value);
         }
         options = node.Deserialize<TunnelOptions>(Json)!;
-        if (!help && !version && !checkUpdate && !update && !generateKey && service != ServiceOperation.Uninstall)
+        if (generateCertificate is not null && (generateCertificate == "true" || string.IsNullOrWhiteSpace(generateCertificate)))
+            throw new ArgumentException("--generate-certificate requires a PFX output path.");
+        if (config is not null)
+        {
+            var directory = Path.GetDirectoryName(Path.GetFullPath(config))!;
+            foreach (var forward in options.Forwards)
+            {
+                if (forward.ListenTls?.CertificatePath is { } path) forward.ListenTls.CertificatePath = Path.GetFullPath(path, directory);
+                if (forward.ListenTls?.CertificateKeyPath is { } keyPath) forward.ListenTls.CertificateKeyPath = Path.GetFullPath(keyPath, directory);
+            }
+        }
+        if (!help && !version && !checkUpdate && !update && !generateKey && generateCertificate is null && service != ServiceOperation.Uninstall)
         {
             if (write is not null && options.Forwards.Count == 0) options.Forwards.Add(new());
             options.Validate();
@@ -110,7 +122,7 @@ internal static class Configuration
         else if (options.Update is null) throw new ArgumentException("Update cannot be null.");
         else options.Update.Validate();
         return new(options, help, version, check, write, checkUpdate, update, yes, generateKey,
-            config is null ? null : Path.GetFullPath(config), service, serviceName);
+            config is null ? null : Path.GetFullPath(config), service, serviceName, generateCertificate);
     }
 
     private static string Normalize(string key) => key.Replace("-", "", StringComparison.Ordinal).Replace("_", "", StringComparison.Ordinal).ToLowerInvariant();
@@ -163,7 +175,14 @@ tcptunnel --forward compressed --mode Client --listen-port 9000 --remote-port 90
 Encryption: --encryption:algorithm ChaCha20Poly1305
 Client: --encryption:key-id laptop --encryption:key BASE64
 Server: --encryption:keys:laptop BASE64 (repeat with other IDs for other clients)
-Keep production keys in a restricted configuration file to avoid shell history/process exposure.
+TLS listener: --listen-tls:mode Tls --listen-tls:certificate-path client.pfx
+Self-signed listener: --listen-tls:mode Tls --listen-tls:generate-self-signed
+TLS destination: --remote-tls:mode Tls [--remote-tls:target-host sql.example]
+SQL Server TDS 7.x: use mode SqlServer on the Client listener and Server destination.
+SQL Server TDS 8.0 / Encrypt=Strict: use mode SqlServerStrict and trusted certificates.
+TLS 1.2/1.3 use OS cipher defaults; explicit --remote-tls:cipher-suites NAME lists require Linux.
+--remote-tls:trust-server-certificate bypasses destination validation (except SqlServerStrict).
+Keep production keys and certificate passwords in a restricted configuration file.
 Every JSON field can be set using --forwards:0:socket:no-delay false or --socket:no-delay=false.
 Hyphenated, PascalCase and camelCase field names are equivalent. CLI values override JSON.
 Booleans accept true/false; a flag without a value means true. Use null to clear optional strings.
@@ -171,6 +190,8 @@ Booleans accept true/false; a flag without a value means true. Use null to clear
 --config PATH          Load JSON configuration
 --write-config PATH    Write the complete effective configuration and exit
 --generate-key         Generate a random 32-byte Base64 shared key and exit
+--generate-certificate PATH  Write a self-signed PFX and exit; refuses to overwrite
+                      Set --listen-tls:self-signed-name and --listen-tls:certificate-password
 --debug                Include debug events in the log
 --log-file PATH        Append JSON-line logs to a file
 --check                Validate configuration without opening listeners

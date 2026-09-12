@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography.X509Certificates;
 
 namespace Tedd.TcpTunnel;
 
@@ -35,8 +36,10 @@ public sealed class Listener
         using var limit = new SemaphoreSlim(_options.MaxConnections);
         Socket? listener = null;
         PcapWriter? capture = null;
+        X509Certificate2? certificate = null;
         try
         {
+            certificate = _options.ListenTls.LoadCertificate();
             listener = new Socket(IPAddress.Parse(_options.ListenAddress).AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             capture = _options.Capture.Directory is null ? null : new PcapWriter(_options.Name, _options.Capture);
             if (listener.AddressFamily == AddressFamily.InterNetworkV6) listener.DualMode = _options.Socket.DualMode;
@@ -58,7 +61,7 @@ public sealed class Listener
                 async Task ProcessTrackedAsync()
                 {
                     await start.Task.ConfigureAwait(false);
-                    try { await ProcessAsync(id, accepted, capture, stop.Token).ConfigureAwait(false); }
+                    try { await ProcessAsync(id, accepted, capture, certificate, stop.Token).ConfigureAwait(false); }
                     finally { limit.Release(); _connections.TryRemove(id, out var ignored); }
                 }
                 var task = ProcessTrackedAsync();
@@ -73,11 +76,11 @@ public sealed class Listener
             await stop.CancelAsync().ConfigureAwait(false);
             listener?.Dispose();
             try { await Task.WhenAll(_connections.Values).ConfigureAwait(false); }
-            finally { capture?.Dispose(); }
+            finally { capture?.Dispose(); certificate?.Dispose(); }
         }
     }
 
-    private async Task ProcessAsync(long id, Socket accepted, PcapWriter? capture, CancellationToken token)
+    private async Task ProcessAsync(long id, Socket accepted, PcapWriter? capture, X509Certificate2? certificate, CancellationToken token)
     {
         using (accepted)
         {
@@ -118,7 +121,8 @@ public sealed class Listener
                     ? await TunnelHandshake.NegotiateAsync(remote, _options, token).ConfigureAwait(false) : null;
                 if (clientSession is not null) Log("debug", "handshake-completed", "Outgoing tunnel handshake completed.", id: id, source: source, destination: destination);
                 Log("info", "connection-established", $"Connection established from {source} to {destination}.", id: id, source: source, destination: destination);
-                await new TunnelConnection(accepted, remote, _options, capture, serverSession ?? clientSession).RunAsync(token).ConfigureAwait(false);
+                await new TunnelConnection(accepted, remote, _options, capture, serverSession ?? clientSession, certificate,
+                    message => Log("debug", "tls-established", message, id: id, source: source, destination: destination)).RunAsync(token).ConfigureAwait(false);
                 Log("info", "connection-closed", "Connection closed.", id: id, source: source, destination: destination,
                     duration: Environment.TickCount64 - started);
             }

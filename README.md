@@ -407,7 +407,164 @@ client's key permits decrypting its recorded sessions and impersonating either p
 key. Key IDs, frame lengths and timing remain observable. Compression can expose secrets through
 length differences when attacker-controlled text and secrets share a compression context;
 use `Compression=None` for such traffic. Encryption covers the tunnel link; application-side
-connections and opt-in PCAP captures contain plaintext.
+connections require endpoint TLS for encryption. Opt-in PCAP captures contain decrypted application data.
+
+## TLS and SQL Server
+
+`ListenTls` terminates TLS from the application at the tunnel Client.
+`RemoteTls` establishes TLS from the tunnel Server to the destination. Compression
+operates on the decrypted application bytes in both directions:
+
+```text
+SQL application -- TLS --> Client -- compressed + tunnel-encrypted --> Server -- TLS --> SQL Server
+```
+
+Endpoint TLS and `Encryption` protect separate connections. Configure shared-key
+tunnel encryption as described above to protect the link carrying the compressed data.
+With endpoint TLS disabled, forwarding an already encrypted SQL stream provides little
+compression. TLS termination also makes opt-in PCAP captures readable as application data.
+
+| Endpoint mode | Connection behavior |
+| --- | --- |
+| `None` (default) | Ordinary TCP forwarding |
+| `Tls` | TLS starts immediately; suitable for services such as HTTPS |
+| `SqlServer` | TDS 7.x PRELOGIN negotiation, then full-session TLS 1.2 |
+| `SqlServerStrict` | TLS first with TDS 8.0 ALPN; for SQL Server 2022+ and compatible `Encrypt=Strict` drivers |
+
+For `SqlServer`, configure `ListenTls.Mode=SqlServer` on the Client and
+`RemoteTls.Mode=SqlServer` on the Server. Both peers must support this setting;
+a mismatch is rejected during tunnel negotiation. PRELOGIN capabilities are relayed,
+and the tunnel requires full-session encryption rather than login-only encryption.
+TLS uses the OS cryptographic implementation; TDS changes the handshake framing,
+not the encryption algorithm. See Microsoft's [TDS PRELOGIN specification](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/60f56408-0188-4cd5-8b90-25c6f2423868).
+
+### SQL Server example
+
+Generate a shared tunnel key with `tcptunnel --generate-key`, then replace both
+`REPLACE_WITH_GENERATED_KEY` values below with the same output.
+
+On the destination side, save `sql-server.json`:
+
+```json
+{
+  "Forwards": [{
+    "Name": "sql-server", "Mode": "Server",
+    "ListenAddress": "0.0.0.0", "ListenPort": 9001,
+    "RemoteHost": "sql01.corp.example.com", "RemotePort": 1433,
+    "Compression": "Lz4",
+    "Encryption": {
+      "Algorithm": "AesGcm",
+      "Keys": { "sql-client": "REPLACE_WITH_GENERATED_KEY" }
+    },
+    "RemoteTls": {
+      "Mode": "SqlServer",
+      "TargetHost": "sql01.corp.example.com",
+      "TrustServerCertificate": false
+    }
+  }]
+}
+```
+
+On the application side, save `sql-client.json`:
+
+```json
+{
+  "Forwards": [{
+    "Name": "sql-client", "Mode": "Client",
+    "ListenAddress": "127.0.0.1", "ListenPort": 14330,
+    "RemoteHost": "tunnel.example.com", "RemotePort": 9001,
+    "Compression": "Lz4",
+    "Encryption": {
+      "Algorithm": "AesGcm",
+      "KeyId": "sql-client", "Key": "REPLACE_WITH_GENERATED_KEY"
+    },
+    "ListenTls": {
+      "Mode": "SqlServer",
+      "CertificatePath": "sql-client.pfx"
+    }
+  }]
+}
+```
+
+Supply a server-authentication certificate with its private key in `sql-client.pfx`,
+or generate a persistent self-signed certificate:
+
+```sh
+tcptunnel --generate-certificate sql-client.pfx --listen-tls:self-signed-name localhost
+tcptunnel --config sql-server.json --check
+tcptunnel --config sql-client.json --check
+```
+
+Run each configuration on its respective machine:
+
+```sh
+tcptunnel --config sql-server.json
+tcptunnel --config sql-client.json
+```
+
+Connect the SQL application to `Server=localhost,14330;Encrypt=True;TrustServerCertificate=False;`,
+with its normal database and authentication settings. The application must trust the CA
+or self-signed certificate used by the **local listener**, whose SAN must match the
+application's connection name. An internal enterprise CA is suitable; a public CA is not required.
+
+For a temporary self-signed listener, replace `CertificatePath` with
+`"GenerateSelfSigned": true, "SelfSignedName": "localhost"`. This creates a certificate
+once per listener startup, valid for one year, with RSA-2048, SHA-256, Server Authentication
+EKU, and a SAN for the specified DNS name or IP. `localhost` also includes both loopback IPs.
+It changes on restart. A non-Strict SQL driver can use `TrustServerCertificate=True` for
+this local certificate; that bypass applies only to the application-to-listener connection.
+
+To connect to a destination with an invalid certificate, explicitly set
+`RemoteTls.TrustServerCertificate=true` on the tunnel Server, or pass
+`--remote-tls:trust-server-certificate`. This bypasses certificate chain, validity,
+and hostname checks while retaining encryption; it does **not** authenticate the
+destination. The default validates the destination against the OS trust store, using
+`RemoteTls.TargetHost` for SNI and certificate identity, or `RemoteHost` when omitted.
+
+For TDS 8.0, use `SqlServerStrict` at both endpoints and connect with `Encrypt=Strict`.
+The application must validate the listener certificate, and destination validation is
+mandatory; `TrustServerCertificate=true` is rejected in this mode. TLS 1.3 availability
+depends on the OS, SQL Server, and driver. TLS termination changes the TLS peer identity:
+authentication that requires end-to-end channel binding, such as enforced SQL Server
+Extended Protection, is incompatible with splitting the connection.
+
+### Certificates and cipher suites
+
+`ListenTls.CertificatePath` accepts a PFX/P12 containing the private key.
+For PEM, also set `ListenTls.CertificateKeyPath`. `CertificatePassword` unlocks a
+password-protected PFX or encrypted PEM key. Relative certificate and key paths in a
+JSON configuration resolve from that file's directory. `--check` loads the certificate
+and verifies that the private key is available before any listener opens.
+
+`--generate-certificate PATH` writes a PFX and refuses to overwrite an existing file.
+Use `--listen-tls:self-signed-name NAME` to choose its identity and
+`ListenTls.CertificatePassword` in a restricted configuration file to protect the
+export. Generated files use owner-only permissions on Linux; restrict certificate,
+private-key and configuration access to the service account on Windows.
+
+`Protocols` defaults to `"Tls12, Tls13"`; SSL and TLS 1.0/1.1 are rejected.
+`SqlServer` selects TLS 1.2 for its TDS 7.x handshake. Cipher suites are negotiated
+by the OS TLS stack, using its defaults when `CipherSuites` is empty.
+Standard suites include AES-128-GCM, AES-256-GCM and ChaCha20-Poly1305 with ECDHE
+for TLS 1.2, and their TLS 1.3 equivalents, subject to platform support.
+
+On Linux, an explicit list can restrict negotiation, for example:
+
+```json
+"RemoteTls": {
+  "Mode": "SqlServer",
+  "CipherSuites": [
+    "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+    "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+  ]
+}
+```
+
+The same list is supported on `ListenTls`. On Windows, use Schannel OS policy;
+explicit per-forward lists are rejected. This follows [.NET TLS platform behavior](https://learn.microsoft.com/en-us/dotnet/core/extensions/sslstream-best-practices).
+Direct TLS permits either endpoint independently in `Mode=Raw`; SQL Server TDS 7.x
+termination in Raw mode requires `SqlServer` at both endpoints. SOCKS does not support
+endpoint TLS.
 
 ## Multiple forwarding setups
 
@@ -469,6 +626,7 @@ supports comments and trailing commas.
 | `--write-config PATH` | Write effective configuration and exit |
 | `--check` | Validate without opening sockets |
 | `--generate-key` | Generate a 32-byte Base64 shared key and exit |
+| `--generate-certificate PATH` | Write a self-signed listener PFX and exit |
 | `--debug` | Set `Logging.Level=Debug` |
 | `--log-file PATH` | Append structured logs to a file |
 | `--install-service --config PATH` | Install and start a Windows or systemd service |
@@ -487,7 +645,7 @@ supports comments and trailing commas.
   exponential backoff, with optional jitter.
 - Retries occur **before forwarding starts**. Established streams are not reconnected or
   replayed, which could duplicate application operations. Applications must reconnect.
-- `HandshakeTimeoutMilliseconds` limits tunnel and SOCKS negotiation.
+- `HandshakeTimeoutMilliseconds` limits tunnel, SOCKS, and endpoint TLS/TDS negotiation.
 - `IdleTimeoutMilliseconds=0` disables application-data idle expiry. Heartbeats do not count
   as application activity.
 - Half-closes preserve the other direction until it finishes. Cancellation closes active

@@ -1,10 +1,12 @@
 using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography.X509Certificates;
 
 namespace Tedd.TcpTunnel;
 
-internal sealed class TunnelConnection(Socket local, Socket remote, ForwardOptions options, PcapWriter? capture, TunnelSession? session)
+internal sealed class TunnelConnection(Socket local, Socket remote, ForwardOptions options, PcapWriter? capture, TunnelSession? session,
+    X509Certificate2? certificate = null, Action<string>? tlsLog = null)
 {
     private bool _receivedFin;
     private long _lastActivity = Environment.TickCount64;
@@ -21,6 +23,10 @@ internal sealed class TunnelConnection(Socket local, Socket remote, ForwardOptio
             if (session?.Receive is not null && !Volatile.Read(ref _receivedFin)) SocketTuning.ResetOnClose(plain);
             local.Dispose(); remote.Dispose();
         });
+        using var encoder = framed ? new BlockCodec(options) : null;
+        using var decoder = framed ? new BlockCodec(options) : null;
+        using var tls = await TlsEndpoints.CreateAsync(local, remote, options, certificate, session, encoder, decoder, tlsLog, stop.Token).ConfigureAwait(false);
+        Stream? StreamFor(Socket socket) => socket == local ? tls.Local : tls.Remote;
         var peerFrame = session?.PeerFrame ?? options.BufferSize;
         var sync = options.Execution == ExecutionMode.Dedicated;
         Task Start(Func<Task> pump) => sync ? Task.Factory.StartNew(() => pump().GetAwaiter().GetResult(),
@@ -38,9 +44,9 @@ internal sealed class TunnelConnection(Socket local, Socket remote, ForwardOptio
         try
         {
             await Task.WhenAll(
-                Start(() => Guard(() => SendAsync(plain, tunnel, framed, sync, stop.Token, session?.Send))),
-                Start(() => Guard(() => framed ? ReceiveFramesAsync(tunnel, plain, peerFrame, sync, stop.Token, session?.Receive) :
-                    SendAsync(tunnel, plain, false, sync, stop.Token)))).ConfigureAwait(false);
+                Start(() => Guard(() => SendAsync(plain, tunnel, framed, sync, stop.Token, session?.Send, encoder, StreamFor(plain), StreamFor(tunnel)))),
+                Start(() => Guard(() => framed ? ReceiveFramesAsync(tunnel, plain, peerFrame, sync, stop.Token, session?.Receive, decoder!, StreamFor(plain)) :
+                    SendAsync(tunnel, plain, false, sync, stop.Token, sourceStream: StreamFor(tunnel), destinationStream: StreamFor(plain))))).ConfigureAwait(false);
         }
         finally { await stop.CancelAsync().ConfigureAwait(false); await watchdog.ConfigureAwait(false); }
     }
@@ -60,14 +66,14 @@ internal sealed class TunnelConnection(Socket local, Socket remote, ForwardOptio
 
     private void Activity() => Interlocked.Exchange(ref _lastActivity, Environment.TickCount64);
 
-    private async Task SendAsync(Socket source, Socket destination, bool framed, bool sync, CancellationToken token, FrameCipher? cipher = null)
+    private async Task SendAsync(Socket source, Socket destination, bool framed, bool sync, CancellationToken token, FrameCipher? cipher = null,
+        BlockCodec? codec = null, Stream? sourceStream = null, Stream? destinationStream = null)
     {
-        using var reader = new SocketTransport(source, sync, options.Socket);
-        using var writer = new SocketTransport(destination, sync, options.Socket);
+        using var reader = new SocketTransport(source, sync, options.Socket, sourceStream);
+        using var writer = new SocketTransport(destination, sync, options.Socket, destinationStream);
         var buffer = ArrayPool<byte>.Shared.Rent(options.BufferSize);
         var encoded = framed ? ArrayPool<byte>.Shared.Rent(BlockCodec.MaxEncodedLength(options.BufferSize) + Protocol.HeaderSize) : null;
         var encrypted = cipher is null ? null : ArrayPool<byte>.Shared.Rent(BlockCodec.MaxEncodedLength(options.BufferSize) + Protocol.HeaderSize + FrameCipher.TagSize);
-        using var codec = framed ? new BlockCodec(options) : null;
         async ValueTask SendFrameAsync(int length)
         {
             if (cipher is null) await writer.SendAsync(encoded!.AsMemory(0, Protocol.HeaderSize + length), token).ConfigureAwait(false);
@@ -118,25 +124,24 @@ internal sealed class TunnelConnection(Socket local, Socket remote, ForwardOptio
                 Protocol.WriteHeader(encoded!, FrameType.Fin, 0, 0);
                 await SendFrameAsync(0).ConfigureAwait(false);
             }
-            SocketTuning.ShutdownSend(destination);
+            await writer.ShutdownSendAsync(token).ConfigureAwait(false);
         }
         finally
         {
-            ArrayPool<byte>.Shared.Return(buffer, clearArray: cipher is not null);
-            if (encoded is not null) ArrayPool<byte>.Shared.Return(encoded, clearArray: cipher is not null);
+            ArrayPool<byte>.Shared.Return(buffer, clearArray: cipher is not null || options.ListenTls.Mode != TlsMode.None || options.RemoteTls.Mode != TlsMode.None);
+            if (encoded is not null) ArrayPool<byte>.Shared.Return(encoded, clearArray: cipher is not null || options.ListenTls.Mode != TlsMode.None || options.RemoteTls.Mode != TlsMode.None);
             if (encrypted is not null) ArrayPool<byte>.Shared.Return(encrypted);
         }
     }
 
-    private async Task ReceiveFramesAsync(Socket source, Socket destination, int maxFrame, bool sync, CancellationToken token, FrameCipher? cipher)
+    private async Task ReceiveFramesAsync(Socket source, Socket destination, int maxFrame, bool sync, CancellationToken token, FrameCipher? cipher, BlockCodec codec, Stream? destinationStream)
     {
         using var reader = new SocketTransport(source, sync, options.Socket);
-        using var writer = new SocketTransport(destination, sync, options.Socket);
+        using var writer = new SocketTransport(destination, sync, options.Socket, destinationStream);
         var encoded = ArrayPool<byte>.Shared.Rent(BlockCodec.MaxEncodedLength(maxFrame));
         var encrypted = cipher is null ? null : ArrayPool<byte>.Shared.Rent(BlockCodec.MaxEncodedLength(maxFrame) + FrameCipher.TagSize);
         var decoded = ArrayPool<byte>.Shared.Rent(maxFrame);
         var header = new byte[Protocol.HeaderSize];
-        using var codec = new BlockCodec(options);
         var sourceEndpoint = (IPEndPoint)source.RemoteEndPoint!;
         var destinationEndpoint = (IPEndPoint)destination.RemoteEndPoint!;
         uint sequence = 0;
@@ -154,7 +159,7 @@ internal sealed class TunnelConnection(Socket local, Socket remote, ForwardOptio
                 if (type == FrameType.Fin)
                 {
                     Volatile.Write(ref _receivedFin, true);
-                    SocketTuning.ShutdownSend(destination);
+                    await writer.ShutdownSendAsync(token).ConfigureAwait(false);
                     return;
                 }
                 if (type == FrameType.Noop) continue;
@@ -167,8 +172,8 @@ internal sealed class TunnelConnection(Socket local, Socket remote, ForwardOptio
         }
         finally
         {
-            ArrayPool<byte>.Shared.Return(encoded, clearArray: cipher is not null);
-            ArrayPool<byte>.Shared.Return(decoded, clearArray: cipher is not null);
+            ArrayPool<byte>.Shared.Return(encoded, clearArray: cipher is not null || options.ListenTls.Mode != TlsMode.None || options.RemoteTls.Mode != TlsMode.None);
+            ArrayPool<byte>.Shared.Return(decoded, clearArray: cipher is not null || options.ListenTls.Mode != TlsMode.None || options.RemoteTls.Mode != TlsMode.None);
             if (encrypted is not null) ArrayPool<byte>.Shared.Return(encrypted);
         }
     }

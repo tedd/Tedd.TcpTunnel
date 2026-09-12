@@ -9,7 +9,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="commands.css">
-  <script src="app.js?v=20260911-benchmarks" defer></script>
+  <script src="app.js?v=20260912-tls" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -45,6 +45,7 @@
       <article><span class="index">01 /</span><div><h3>Dual-stack access control</h3><p>Listen and connect over IPv4 or IPv6. Per-forward ACLs accept exact IP addresses and CIDR subnets, with explicit allow and deny lists.</p></div></article>
       <article><span class="index">02 /</span><div><h3>Configurable compression</h3><p>Choose Brotli, LZ4, Zstandard, Deflate, GZip, ZLib, or no compression. Brotli can retain history across frames to reuse repeated content.</p></div></article>
       <article><span class="index">03 /</span><div><h3>One key per client</h3><p>Encrypt after compression with ChaCha20-Poly1305, AES-256-GCM, or AES-256-CCM. Use a separate 32-byte shared key for each client; remove its entry and restart the server to revoke access.</p></div></article>
+      <article><span class="index">TLS /</span><div><h3>Compress encrypted SQL connections</h3><p>Terminate application TLS at the client and establish TLS to the destination. Support includes SQL Server TDS 7.x and TDS 8.0 / Encrypt=Strict, TLS 1.2 and 1.3, supplied PFX or PEM certificates, and self-signed certificate generation. AES-GCM and ChaCha20-Poly1305 suites are negotiated by the OS TLS stack.</p></div></article>
       <article><span class="index">04 /</span><div><h3>Operational deployment</h3><p>Install named Windows or systemd services from the executable. Structured lifecycle logs correlate attempts, denials, connections, retries, failures, and closures; debug mode adds protocol context.</p></div></article>
     </div>
   </section>
@@ -63,6 +64,15 @@
           <label>Encryption<select id="encryption" name="encryption"><option value="None">None</option><option value="ChaCha20Poly1305">ChaCha20-Poly1305</option><option value="AesGcm">AES-256-GCM</option><option value="AesCcm">AES-256-CCM</option></select></label>
           <label>Client key ID<input id="key-id" name="key-id" value="laptop" required maxlength="64" pattern="[A-Za-z0-9_\-]+" spellcheck="false" disabled></label>
           <label>Batch delay (ms)<input id="batch-milliseconds" name="batch-milliseconds" type="number" value="0" required min="0" max="10000" inputmode="numeric"></label>
+          <label>Application TLS<select id="tls-mode"><option value="None">Off</option><option value="Tls">Direct TLS</option><option value="SqlServer">SQL Server · TDS 7.x</option><option value="SqlServerStrict">SQL Server · TDS 8.0 / Strict</option></select></label>
+          <label>TLS versions<select id="tls-protocols"><option value="Tls12, Tls13">TLS 1.2 and 1.3</option><option value="Tls12">TLS 1.2</option><option value="Tls13">TLS 1.3</option></select></label>
+          <label>TLS cipher policy<select id="tls-cipher"><option value="">OS defaults</option><option value="TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256">Linux · ECDHE-RSA / AES-128-GCM</option><option value="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384">Linux · ECDHE-RSA / AES-256-GCM</option><option value="TLS_AES_256_GCM_SHA384">Linux · TLS 1.3 / AES-256-GCM</option></select></label>
+          <label>Listener certificate<select id="tls-certificate"><option value="generated">Generate in memory</option><option value="pfx">PFX / P12 file</option><option value="pem">PEM certificate and key</option></select></label>
+          <label>Certificate file<input id="tls-certificate-path" value="client.pfx" required pattern="[A-Za-z0-9 ._:\\\/\-]+" spellcheck="false"></label>
+          <label>PEM private key<input id="tls-key-path" value="client.key" required pattern="[A-Za-z0-9 ._:\\\/\-]+" spellcheck="false"></label>
+          <label>Certificate DNS name<input id="tls-name" value="localhost" required maxlength="253" pattern="[A-Za-z0-9._:\-]+" spellcheck="false"></label>
+          <label>Destination certificate name<input id="tls-target-host" placeholder="Defaults to remote host" pattern="[A-Za-z0-9._:\-]+" spellcheck="false"></label>
+          <label class="check-field"><input id="tls-trust" type="checkbox"> Trust invalid destination certificate</label>
           <label class="check-field"><input id="compression-history" name="compression-history" type="checkbox"> Retain Brotli history</label>
         </div>
         <fieldset class="choice-group shell-choice"><legend>Shell</legend><div class="choice-row"><button type="button" data-shell="bash" aria-pressed="true">Bash</button><button type="button" data-shell="powershell" aria-pressed="false">PowerShell</button><button type="button" data-shell="cmd" aria-pressed="false">Command Prompt</button></div></fieldset>
@@ -92,7 +102,7 @@
     <div class="benchmark-table-wrap"><table><caption>All measured compression and encryption profiles</caption><thead><tr><th scope="col">Profile</th><th scope="col">Settings</th><th scope="col">Input</th><th scope="col">Median MiB/s</th><th scope="col">Peak MiB/s</th></tr></thead><tbody id="benchmark-table-body"></tbody></table></div>
     <noscript><p>JavaScript is required for the result tables. The graph remains available above, and the complete results are in <a href="https://github.com/tedd/Tedd.TcpTunnel/blob/main/benchmarks.md">benchmarks.md</a>.</p></noscript>
   </div></section>
-  <section class="wrap operational"><h2>Operations and security.</h2><div><p><strong>Services and logs.</strong> Install or remove named Windows and systemd services from the CLI. JSON-line logs record connection attempts, ACL decisions, establishment, retries, failures, and closure; debug logging adds handshake and exception detail. <a href="https://github.com/tedd/Tedd.TcpTunnel/tree/deploy#run-as-a-service">Service commands</a>.</p><p><strong>Transport security.</strong> Source ACLs accept IPv4/IPv6 addresses and CIDR subnets. Client/Server pairs can authenticate and encrypt the tunnel with one shared key per client. The protocol has no forward secrecy and has not been independently audited. Disable compression when attacker-controlled data and secrets could share a compression context. PCAP captures contain plaintext. <a href="https://github.com/tedd/Tedd.TcpTunnel/tree/deploy#encrypt-a-link">Key setup and revocation</a>.</p></div></section>
+  <section class="wrap operational"><h2>Operations and security.</h2><div><p><strong>Services and logs.</strong> Install or remove named Windows and systemd services from the CLI. JSON-line logs record connection attempts, ACL decisions, establishment, retries, failures, and closure; debug logging adds handshake and exception detail. <a href="https://github.com/tedd/Tedd.TcpTunnel/tree/deploy#run-as-a-service">Service commands</a>.</p><p><strong>Transport security.</strong> Source ACLs accept IPv4/IPv6 addresses and CIDR subnets. Client/Server pairs can authenticate and encrypt the tunnel with one shared key per client. The protocol has no forward secrecy and has not been independently audited. Disable compression when attacker-controlled data and secrets could share a compression context. Listener and destination TLS protect the application connections while the tunnel compresses decrypted data. Certificate validation is enabled by default; an explicit destination trust bypass is available outside Strict mode. PCAP captures contain decrypted application data. <a href="https://github.com/tedd/Tedd.TcpTunnel/tree/deploy#tls-and-sql-server">TLS and SQL Server setup</a>. <a href="https://github.com/tedd/Tedd.TcpTunnel/tree/deploy#encrypt-a-link">Key setup and revocation</a>.</p></div></section>
 </main>
 <footer class="wrap"><a class="brand" href="#">Tedd<span class="brand-dot">.</span>TcpTunnel</a><span>Open source. LGPL-2.1 licensed.</span><a href="https://github.com/tedd/Tedd.TcpTunnel/tree/deploy">Source &amp; documentation <span aria-hidden="true">↗</span></a></footer>
 </body></html>

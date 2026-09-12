@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -86,13 +87,50 @@ internal static partial class SocketTuning
     }
 }
 
-internal sealed class SocketTransport(Socket socket, bool synchronous, SocketOptions options) : IDisposable
+internal sealed class SocketTransport(Socket socket, bool synchronous, SocketOptions options, Stream? stream = null) : IDisposable
 {
     private CancellationTokenSource? _receiveTimeout;
+    private byte[]? _streamBuffer;
+    private Task<int>? _pendingRead;
+    private int _streamOffset, _streamCount;
+
+    private async ValueTask<int> ReceiveStreamAsync(Memory<byte> buffer, int timeoutMilliseconds, CancellationToken token)
+    {
+        if (buffer.IsEmpty) return 0;
+        if (_streamCount == 0)
+        {
+            if (_pendingRead is null)
+            {
+                if (_streamBuffer is null || _streamBuffer.Length < buffer.Length) _streamBuffer = new byte[buffer.Length];
+                _pendingRead = stream!.ReadAsync(_streamBuffer.AsMemory(0, buffer.Length), token).AsTask();
+            }
+            // A heartbeat/batch deadline must not cancel a TLS record read. Keep its
+            // private buffer until completion, including across subsequent pump calls.
+            try
+            {
+                _streamCount = timeoutMilliseconds > 0
+                    ? await _pendingRead.WaitAsync(TimeSpan.FromMilliseconds(timeoutMilliseconds), token).ConfigureAwait(false)
+                    : await _pendingRead.ConfigureAwait(false);
+            }
+            catch (TimeoutException) { return -1; }
+            _pendingRead = null; _streamOffset = 0;
+        }
+        var count = Math.Min(buffer.Length, _streamCount);
+        _streamBuffer.AsMemory(_streamOffset, count).CopyTo(buffer);
+        _streamOffset += count; _streamCount -= count;
+        return count;
+    }
+
+    public async ValueTask ShutdownSendAsync(CancellationToken token)
+    {
+        if (stream is SslStream ssl) await ssl.ShutdownAsync().WaitAsync(token).ConfigureAwait(false);
+        SocketTuning.ShutdownSend(socket);
+    }
     public async ValueTask<int> ReceiveAsync(Memory<byte> buffer, int timeoutMilliseconds, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         int count;
+        if (stream is not null) return await ReceiveStreamAsync(buffer, timeoutMilliseconds, token).ConfigureAwait(false);
         if (synchronous)
         {
             if (timeoutMilliseconds > 0 && !socket.Poll(TimeSpan.FromMilliseconds(timeoutMilliseconds), SelectMode.SelectRead)) return -1;
@@ -128,6 +166,7 @@ internal sealed class SocketTransport(Socket socket, bool synchronous, SocketOpt
 
     public async ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken token)
     {
+        if (stream is not null) { await stream.WriteAsync(buffer, token).ConfigureAwait(false); return; }
         while (!buffer.IsEmpty)
         {
             token.ThrowIfCancellationRequested();

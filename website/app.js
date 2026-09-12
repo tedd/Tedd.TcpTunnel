@@ -26,6 +26,16 @@ const compression = document.querySelector('#compression');
 const compressionHistory = document.querySelector('#compression-history');
 const encryption = document.querySelector('#encryption');
 const keyId = document.querySelector('#key-id');
+const tlsMode = document.querySelector('#tls-mode');
+const tlsProtocols = document.querySelector('#tls-protocols');
+const tlsCipher = document.querySelector('#tls-cipher');
+const tlsCertificate = document.querySelector('#tls-certificate');
+const tlsCertificatePath = document.querySelector('#tls-certificate-path');
+const tlsKeyPath = document.querySelector('#tls-key-path');
+const tlsName = document.querySelector('#tls-name');
+const tlsTargetHost = document.querySelector('#tls-target-host');
+const tlsTrust = document.querySelector('#tls-trust');
+
 
 function selectButtons(selector, selected) {
   for (const button of document.querySelectorAll(selector)) {
@@ -56,6 +66,29 @@ function formatTunnelCommand(lines, shell) {
 }
 
 function updateTunnelCommand() {
+  const hasTls = tlsMode.value !== 'None';
+  const tlsListener = hasTls && tunnelState.role === 'client';
+  const tlsDestination = hasTls && tunnelState.role === 'server';
+  const strictTls = tlsMode.value === 'SqlServerStrict';
+  tlsProtocols.disabled = !hasTls || tlsMode.value === 'SqlServer';
+  tlsCipher.disabled = !hasTls;
+  tlsCertificate.disabled = !tlsListener;
+  if (strictTls && tlsCertificate.value === 'generated') tlsCertificate.value = 'pfx';
+  tlsCertificatePath.disabled = !tlsListener || tlsCertificate.value === 'generated';
+  tlsKeyPath.disabled = !tlsListener || tlsCertificate.value !== 'pem';
+  tlsName.disabled = !tlsListener || tlsCertificate.value !== 'generated';
+  tlsTargetHost.disabled = !tlsDestination;
+  tlsTrust.disabled = !tlsDestination || strictTls;
+  if (strictTls) tlsTrust.checked = false;
+  if (tlsMode.value === 'SqlServer') tlsProtocols.value = 'Tls12';
+  if ((tlsProtocols.value === 'Tls12' && tlsCipher.value === 'TLS_AES_256_GCM_SHA384') ||
+      (tlsProtocols.value === 'Tls13' && tlsCipher.value.startsWith('TLS_ECDHE_'))) tlsCipher.value = '';
+  for (const [control, visible] of [
+    [tlsProtocols, hasTls], [tlsCipher, hasTls], [tlsCertificate, tlsListener],
+    [tlsCertificatePath, !tlsCertificatePath.disabled], [tlsKeyPath, !tlsKeyPath.disabled],
+    [tlsName, !tlsName.disabled], [tlsTargetHost, tlsDestination], [tlsTrust, tlsDestination && !strictTls]
+  ]) control.closest('label').hidden = !visible;
+
   keyId.disabled = encryption.value === 'None';
   compressionHistory.disabled = compression.value !== 'Brotli';
   if (compressionHistory.disabled) compressionHistory.checked = false;
@@ -80,6 +113,24 @@ function updateTunnelCommand() {
       : `--encryption:keys:${keyId.value} REPLACE_WITH_GENERATED_KEY`
   ].filter(Boolean);
 
+  if (hasTls) {
+    const prefix = tlsListener ? 'listen-tls' : 'remote-tls';
+    lines.push(`--${prefix}:mode ${tlsMode.value}`);
+    lines.push(`--${prefix}:protocols "${tlsMode.value === 'SqlServer' ? 'Tls12' : tlsProtocols.value}"`);
+    if (tlsCipher.value) lines.push(`--${prefix}:cipher-suites ${tlsCipher.value}`);
+    if (tlsListener) {
+      if (tlsCertificate.value === 'generated') lines.push(`--listen-tls:generate-self-signed --listen-tls:self-signed-name ${tlsName.value}`);
+      else {
+        // File fields permit only literal path characters, excluding shell expansion.
+        lines.push(`--listen-tls:certificate-path "${tlsCertificatePath.value}"`);
+        if (tlsCertificate.value === 'pem') lines.push(`--listen-tls:certificate-key-path "${tlsKeyPath.value}"`);
+      }
+    } else {
+      if (tlsTargetHost.value) lines.push(`--remote-tls:target-host ${tlsTargetHost.value}`);
+      if (tlsTrust.checked) lines.push('--remote-tls:trust-server-certificate');
+    }
+  }
+
   commandOutput.textContent = formatTunnelCommand(lines, tunnelState.shell);
   commandCopy.disabled = false;
   document.querySelector('#command-label').textContent = `${mode.toUpperCase()} · ${tunnelState.shell === 'cmd' ? 'COMMAND PROMPT' : tunnelState.shell.toUpperCase()}`;
@@ -87,6 +138,15 @@ function updateTunnelCommand() {
     ? 'Run this near the application. It listens locally and connects to the tunnel server.'
     : 'Run this near the destination. Permit the listen port through the network firewall, and use identical compression and encryption settings on the client.';
   if (encryption.value !== 'None') document.querySelector('#command-note').textContent += ' Run tcptunnel --generate-key locally and replace REPLACE_WITH_GENERATED_KEY on both peers with the same output. Use a different key for each client. For production, store keys in a restricted JSON file; command-line keys appear in shell history and process listings.';
+  if (hasTls) {
+    document.querySelector('#command-note').textContent += ' TLS terminates at the application endpoints so compression receives decrypted data. Protect the intervening link with shared-key tunnel encryption.';
+    if (tlsMode.value === 'SqlServer') document.querySelector('#command-note').textContent += ' Select SQL Server TDS 7.x on both tunnel ends. Connect the SQL driver to the local listen port with Encrypt=True.';
+    if (strictTls) document.querySelector('#command-note').textContent += ' Encrypt=Strict requires the application to trust the listener certificate and the tunnel server to validate the destination certificate.';
+    if (tlsListener && tlsCertificate.value === 'generated') document.querySelector('#command-note').textContent += ' The self-signed certificate changes on restart. For a persistent certificate, run tcptunnel --generate-certificate client.pfx and select that file.';
+    if (tlsTrust.checked && tlsDestination) document.querySelector('#command-note').textContent += ' Trusting an invalid certificate encrypts traffic without authenticating the destination.';
+    if (tlsCipher.value) document.querySelector('#command-note').textContent += ' Explicit cipher suites require Linux; Windows uses Schannel OS policy.';
+    if (tlsListener && tlsCertificate.value !== 'generated') document.querySelector('#command-note').textContent += ' For a password-protected key, set ListenTls.CertificatePassword in a restricted JSON file.';
+  }
 }
 
 for (const button of document.querySelectorAll('[data-role]')) {

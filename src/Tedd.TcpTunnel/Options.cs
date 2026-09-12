@@ -46,6 +46,8 @@ public sealed class ForwardOptions
     public int ZstandardLevel { get; set; } = 3;
     public bool CompressionHistory { get; set; }
     public EncryptionOptions Encryption { get; set; } = new();
+    public ListenTlsOptions ListenTls { get; set; } = new();
+    public RemoteTlsOptions RemoteTls { get; set; } = new();
     public int BufferSize { get; set; } = 65536;
     public int BatchMilliseconds { get; set; }
     public int HeartbeatMilliseconds { get; set; } = 30000;
@@ -85,8 +87,14 @@ public sealed class ForwardOptions
             throw new ArgumentException("Compression requires a client/server tunnel pair.");
         if (Mode == TunnelMode.Socks5 && !AllowRemoteSocks && !IPAddress.IsLoopback(address))
             throw new ArgumentException("A non-loopback SOCKS listener requires AllowRemoteSocks=true.");
-        if (Retry is null || Socket is null || Capture is null || Encryption is null || AccessControl is null) throw new ArgumentException("Nested forward options cannot be null.");
+        if (Retry is null || Socket is null || Capture is null || Encryption is null || AccessControl is null || ListenTls is null || RemoteTls is null) throw new ArgumentException("Nested forward options cannot be null.");
         Retry.Validate(); Socket.Validate(); Capture.Validate(); Encryption.Validate(Mode); AccessControl.Validate();
+        ListenTls.Validate(); RemoteTls.Validate();
+        if (Mode == TunnelMode.Server && ListenTls.Mode != TlsMode.None || Mode == TunnelMode.Client && RemoteTls.Mode != TlsMode.None ||
+            Mode == TunnelMode.Socks5 && (ListenTls.Mode != TlsMode.None || RemoteTls.Mode != TlsMode.None))
+            throw new ArgumentException("Use ListenTls on Client, RemoteTls on Server, or either on Raw. SOCKS does not support endpoint TLS.");
+        if (Mode == TunnelMode.Raw && (ListenTls.Mode == TlsMode.SqlServer) != (RemoteTls.Mode == TlsMode.SqlServer))
+            throw new ArgumentException("Raw SQL Server termination requires SqlServer mode on both TLS endpoints.");
     }
 
     internal static void Range(int value, int min, int max, string name)

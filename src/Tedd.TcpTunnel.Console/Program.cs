@@ -39,9 +39,30 @@ internal static class Program
             var command = Configuration.Parse(args);
             if (command.Help) { System.Console.WriteLine(Configuration.HelpText); return 0; }
             if (command.GenerateKey) { System.Console.WriteLine(EncryptionOptions.GenerateKey()); return 0; }
+            if (command.GenerateCertificate is { } certificatePath)
+            {
+                var settings = command.Options.Forwards.FirstOrDefault()?.ListenTls ?? new ListenTlsOptions();
+                settings.Validate();
+                using var certificate = ListenTlsOptions.CreateSelfSigned(settings.SelfSignedName);
+                var pfx = certificate.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pfx, settings.CertificatePassword);
+                try
+                {
+                    var fileOptions = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None };
+                    if (!OperatingSystem.IsWindows()) fileOptions.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+                    await using var output = new FileStream(certificatePath, fileOptions);
+                    await output.WriteAsync(pfx, stop.Token).ConfigureAwait(false);
+                }
+                finally { System.Security.Cryptography.CryptographicOperations.ZeroMemory(pfx); }
+                System.Console.WriteLine($"Self-signed certificate written to {Path.GetFullPath(certificatePath)}.");
+                return 0;
+            }
             if (command.Version) { System.Console.WriteLine(Version); return 0; }
             if (command.WriteConfig is { } file) { await File.WriteAllTextAsync(file, JsonSerializer.Serialize(command.Options, Configuration.Json), stop.Token); return 0; }
-            if (command.Check) { System.Console.WriteLine("Configuration is valid."); return 0; }
+            if (command.Check)
+            {
+                foreach (var forward in command.Options.Forwards) { using var certificate = forward.ListenTls.LoadCertificate(); }
+                System.Console.WriteLine("Configuration is valid."); return 0;
+            }
             if (command.Service == ServiceOperation.Install) { await ServiceManagement.InstallAsync(command, stop.Token).ConfigureAwait(false); return 0; }
             if (command.Service == ServiceOperation.Uninstall) { await ServiceManagement.UninstallAsync(command.ServiceName, stop.Token).ConfigureAwait(false); return 0; }
             using var http = services?.CreateHttpClient() ?? new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
@@ -77,7 +98,7 @@ internal static class Program
 
     private static bool IsExpected(Exception ex) => ex is ArgumentException or JsonException or IOException or InvalidDataException or
         System.Net.Sockets.SocketException or HttpRequestException or UnauthorizedAccessException or InvalidOperationException or
-        OperationCanceledException or System.ComponentModel.Win32Exception or NotSupportedException;
+        OperationCanceledException or System.ComponentModel.Win32Exception or NotSupportedException or System.Security.Cryptography.CryptographicException;
 
     internal static bool ConfirmUpdate(TextReader? input = null, TextWriter? output = null)
     {

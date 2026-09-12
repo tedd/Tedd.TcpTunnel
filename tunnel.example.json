@@ -8,6 +8,8 @@
       "RemoteHost": "127.0.0.1",
       "RemotePort": 80,
       "Encryption": { "Algorithm": "None" },
+      "ListenTls": { "Mode": "None" },
+      "RemoteTls": { "Mode": "None" },
       "BufferSize": 65536,
       "BatchMilliseconds": 0,
       "Execution": "Async",
