@@ -2,7 +2,7 @@
 <title id="title">Median and peak end-to-end TcpTunnel throughput</title>
 <desc id="description">Grouped horizontal bars compare median and peak application-data throughput in mebibytes per second for all measured compression and encryption profiles.</desc>
 <rect width="100%" height="100%" rx="12" fill="#ffffff"/>
-<style>text{font-family:Arial,sans-serif;fill:#13233b}.title{font-size:24px;font-weight:700}.subtitle,.tick{font-size:12px;fill:#667085}.label{font-size:13px;font-weight:600}.legend{font-size:12px;font-weight:600}.grid{stroke:#d9e1ec;stroke-width:1}.axis{stroke:#9aa8ba;stroke-width:1}</style>
+<style>text{font-family:Arial,sans-serif;fill:#13282f}.title{font-size:24px;font-weight:700}.subtitle,.tick{font-size:12px;fill:#61747b}.label{font-size:13px;font-weight:600}.legend{font-size:12px;font-weight:600}.grid{stroke:#d6e3df;stroke-width:1}.axis{stroke:#9aadaa;stroke-width:1}rect[fill="#255de8"]{fill:#087f78}rect[fill="#9bb6f2"]{fill:#9dd9d1}</style>
 <text class="title" x="28" y="38">End-to-end throughput by profile</text>
 <text class="subtitle" x="28" y="61">Median is the primary comparison; peak is the highest observed run.</text>
 <rect x="760" y="30" width="18" height="9" rx="3" fill="#255de8"/><text class="legend" x="786" y="39">Median</text>
