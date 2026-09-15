@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1066" viewBox="0 0 1200 1066" role="img" aria-labelledby="title description">
+<title id="title">Median and peak end-to-end TcpTunnel throughput</title>
+<desc id="description">Grouped horizontal bars compare median and peak application-data throughput in mebibytes per second for all measured compression and encryption profiles.</desc>
+<rect width="100%" height="100%" rx="12" fill="#ffffff"/>
+<style>text{font-family:Arial,sans-serif;fill:#13233b}.title{font-size:24px;font-weight:700}.subtitle,.tick{font-size:12px;fill:#667085}.label{font-size:13px;font-weight:600}.legend{font-size:12px;font-weight:600}.grid{stroke:#d9e1ec;stroke-width:1}.axis{stroke:#9aa8ba;stroke-width:1}</style>
+<text class="title" x="28" y="38">End-to-end throughput by profile</text>
+<text class="subtitle" x="28" y="61">Median is the primary comparison; peak is the highest observed run.</text>
+<rect x="760" y="30" width="18" height="9" rx="3" fill="#255de8"/><text class="legend" x="786" y="39">Median</text>
+<rect x="865" y="30" width="18" height="9" rx="3" fill="#9bb6f2"/><text class="legend" x="891" y="39">Peak</text>
+<line class="grid" x1="230" y1="105" x2="230" y2="1007"/>
+<text class="tick" x="230" y="1042" text-anchor="middle">0 MiB/s</text>
+<line class="grid" x1="405" y1="105" x2="405" y2="1007"/>
+<text class="tick" x="405" y="1042" text-anchor="middle">40 MiB/s</text>
+<line class="grid" x1="580" y1="105" x2="580" y2="1007"/>
+<text class="tick" x="580" y="1042" text-anchor="middle">80 MiB/s</text>
+<line class="grid" x1="755" y1="105" x2="755" y2="1007"/>
+<text class="tick" x="755" y="1042" text-anchor="middle">120 MiB/s</text>
+<line class="grid" x1="930" y1="105" x2="930" y2="1007"/>
+<text class="tick" x="930" y="1042" text-anchor="middle">160 MiB/s</text>
+<line class="grid" x1="1105" y1="105" x2="1105" y2="1007"/>
+<text class="tick" x="1105" y="1042" text-anchor="middle">200 MiB/s</text>
+<text class="label" x="216" y="132" text-anchor="end">None</text>
+<rect x="230" y="121" width="723.16" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="134" width="863.9" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="166" text-anchor="end">Zstandard -5</text>
+<rect x="230" y="155" width="601.15" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="168" width="691.44" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="200" text-anchor="end">AES-256-GCM</text>
+<rect x="230" y="189" width="586.9" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="202" width="762.5" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="234" text-anchor="end">LZ4 + AES-256-GCM</text>
+<rect x="230" y="223" width="575.31" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="236" width="650.6" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="268" text-anchor="end">LZ4 fastest</text>
+<rect x="230" y="257" width="523.28" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="270" width="552.41" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="302" text-anchor="end">AES-256-CCM</text>
+<rect x="230" y="291" width="509.88" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="304" width="683.66" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="336" text-anchor="end">LZ4 + AES-256-CCM</text>
+<rect x="230" y="325" width="505.28" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="338" width="584.1" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="370" text-anchor="end">LZ4 + ChaCha20-Poly1305</text>
+<rect x="230" y="359" width="498.47" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="372" width="528.47" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="404" text-anchor="end">ChaCha20-Poly1305</text>
+<rect x="230" y="393" width="470.46" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="406" width="523.42" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="438" text-anchor="end">ZLib fastest</text>
+<rect x="230" y="427" width="402.98" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="440" width="432.7" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="472" text-anchor="end">Brotli q1</text>
+<rect x="230" y="461" width="396.94" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="474" width="423.58" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="506" text-anchor="end">Deflate fastest</text>
+<rect x="230" y="495" width="395.53" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="508" width="424.32" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="540" text-anchor="end">Zstandard 3</text>
+<rect x="230" y="529" width="376.18" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="542" width="394.26" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="574" text-anchor="end">GZip fastest</text>
+<rect x="230" y="563" width="335.3" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="576" width="377.21" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="608" text-anchor="end">ZLib optimal</text>
+<rect x="230" y="597" width="169.65" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="610" width="173.76" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="642" text-anchor="end">Deflate optimal</text>
+<rect x="230" y="631" width="164.12" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="644" width="173.81" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="676" text-anchor="end">Brotli history + AES-GCM</text>
+<rect x="230" y="665" width="161.03" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="678" width="169.23" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="710" text-anchor="end">GZip optimal</text>
+<rect x="230" y="699" width="159.81" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="712" width="172.23" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="744" text-anchor="end">Brotli history + AES-CCM</text>
+<rect x="230" y="733" width="158.27" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="746" width="163.74" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="778" text-anchor="end">Brotli q4 + history</text>
+<rect x="230" y="767" width="154.35" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="780" width="164.9" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="812" text-anchor="end">Brotli history + ChaCha20</text>
+<rect x="230" y="801" width="152.54" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="814" width="157.66" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="846" text-anchor="end">Brotli q4</text>
+<rect x="230" y="835" width="149.28" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="848" width="183.11" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="880" text-anchor="end">Zstandard 9</text>
+<rect x="230" y="869" width="148.66" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="882" width="160.37" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="914" text-anchor="end">Brotli q9</text>
+<rect x="230" y="903" width="42.06" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="916" width="43.19" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="948" text-anchor="end">LZ4 HC</text>
+<rect x="230" y="937" width="30.91" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="950" width="31.81" height="9" rx="3" fill="#9bb6f2"/>
+<text class="label" x="216" y="982" text-anchor="end">Brotli q9 + history</text>
+<rect x="230" y="971" width="22.14" height="9" rx="3" fill="#255de8"/>
+<rect x="230" y="984" width="22.92" height="9" rx="3" fill="#9bb6f2"/>
+<line class="axis" x1="230" y1="1007" x2="1105" y2="1007"/>
+</svg>

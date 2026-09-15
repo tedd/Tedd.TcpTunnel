@@ -1,16 +1,9 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-        <LangVersion>latest</LangVersion>
-    <Nullable>enable</Nullable>
-    <Platforms>AnyCPU;x64</Platforms>      </PropertyGroup>
-
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AllowUnsafeBlocks>true</AllowUnsafeBlocks></PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="K4os.Compression.LZ4.Streams" Version="1.2.10-beta" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0-preview.5.21301.5" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="6.0.0-preview.5.21301.5" />
-    <PackageReference Include="System.IO.Pipelines" Version="6.0.0-preview.5.21301.5" />
+    <PackageReference Include="K4os.Compression.LZ4" Version="1.3.8" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
+    <InternalsVisibleTo Include="Tedd.TcpTunnel.Tests" />
+    <InternalsVisibleTo Include="Tedd.TcpTunnel.Benchmarks" />
   </ItemGroup>
-
 </Project>

@@ -1,0 +1,113 @@
+name: Build, test and package
+on:
+  push:
+    branches: [main, deploy]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          global-json-file: global.json
+      - run: node --test scripts/test-website.cjs
+      - run: dotnet restore src/Tedd.TcpTunnel.sln --locked-mode
+      - run: dotnet build src/Tedd.TcpTunnel.sln -c Release --no-restore
+      - run: dotnet test --project src/Tedd.TcpTunnel.Tests/Tedd.TcpTunnel.Tests.csproj -c Release --no-build --no-progress --coverlet --coverlet-output-format cobertura --results-directory artifacts/coverage
+      - uses: actions/upload-artifact@v7.0.1
+        if: always()
+        with:
+          name: coverage-${{ matrix.os }}
+          path: artifacts/coverage/*.xml
+          if-no-files-found: error
+  coverage:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          pattern: coverage-*
+          path: artifacts/coverage
+      - shell: pwsh
+        run: ./scripts/check-coverage.ps1
+  package:
+    needs: coverage
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64, installers: true }
+          - { os: windows-latest, rid: win-arm64, installers: true }
+          - { os: ubuntu-latest, rid: linux-x64, installers: false }
+          - { os: ubuntu-24.04-arm, rid: linux-arm64, installers: false }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Determine version
+        shell: pwsh
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          $version = if ($env:REF_TYPE -eq 'tag') { $env:REF_NAME.TrimStart('v') } else { ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version }
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw 'Invalid release version.' }
+          "PACKAGE_VERSION=$version" >> $env:GITHUB_ENV
+      - name: Create self-contained ZIP and installers
+        shell: pwsh
+        run: |
+          $installers = '${{ matrix.installers }}' -eq 'true'
+          ./scripts/package.ps1 -Runtime '${{ matrix.rid }}' -Version $env:PACKAGE_VERSION -Installers:$installers
+      - name: Smoke test package and in-place updater
+        if: matrix.rid != 'win-arm64'
+        shell: pwsh
+        run: ./scripts/smoke-package.ps1 -Runtime '${{ matrix.rid }}' -Version $env:PACKAGE_VERSION
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: tcptunnel-${{ matrix.rid }}
+          path: |
+            artifacts/packages/*.zip
+            artifacts/packages/*.msi
+            artifacts/packages/*-setup.exe
+            artifacts/packages/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 90
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          pattern: tcptunnel-*
+          path: packages
+          merge-multiple: true
+      - name: Assemble release checksums and create a draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cd packages
+          sha256sum -- *.zip *.msi *-setup.exe > SHA256SUMS
+          args=(--draft --title "Tedd.TcpTunnel $RELEASE_TAG" --generate-notes)
+          if [[ "$RELEASE_TAG" == *-* ]]; then args+=(--prerelease); fi
+          gh release create "$RELEASE_TAG" "${args[@]}" -- *.zip *.msi *-setup.exe SHA256SUMS

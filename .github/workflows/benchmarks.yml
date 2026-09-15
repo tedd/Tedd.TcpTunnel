@@ -1,0 +1,64 @@
+name: Performance benchmarks
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Benchmark suite
+        type: choice
+        options:
+          - throughput
+          - microbenchmarks
+        default: throughput
+        required: true
+      filter:
+        description: BenchmarkDotNet filter
+        default: '*'
+        required: true
+      target_mib:
+        description: Minimum MiB transferred per throughput profile
+        default: '64'
+        required: true
+      iterations:
+        description: Measured transfers per throughput profile
+        default: '7'
+        required: true
+permissions:
+  contents: read
+jobs:
+  benchmark:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Measure performance and allocations
+        if: inputs.suite == 'microbenchmarks'
+        shell: pwsh
+        env:
+          BENCHMARK_FILTER: ${{ inputs.filter }}
+        run: dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --filter $env:BENCHMARK_FILTER --job short --exporters json --artifacts artifacts/benchmarks
+      - name: Measure end-to-end throughput
+        if: inputs.suite == 'throughput'
+        shell: pwsh
+        env:
+          TARGET_MIB: ${{ inputs.target_mib }}
+          ITERATIONS: ${{ inputs.iterations }}
+        run: dotnet run --project src/Tedd.TcpTunnel.Benchmarks -c Release -- --throughput --target-mib $env:TARGET_MIB --warmups 1 --iterations $env:ITERATIONS --output artifacts/throughput/benchmarks.md --json-output artifacts/throughput/benchmarks.json --svg-output artifacts/throughput/benchmarks.svg
+      - name: Upload microbenchmark results
+        uses: actions/upload-artifact@v7.0.1
+        if: always() && inputs.suite == 'microbenchmarks'
+        with:
+          name: microbenchmarks-${{ github.sha }}
+          path: artifacts/benchmarks
+          if-no-files-found: error
+          retention-days: 90
+      - name: Upload throughput results
+        uses: actions/upload-artifact@v7.0.1
+        if: always() && inputs.suite == 'throughput'
+        with:
+          name: throughput-${{ github.sha }}
+          path: artifacts/throughput
+          if-no-files-found: error
+          retention-days: 90

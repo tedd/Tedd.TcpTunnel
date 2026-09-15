@@ -1,0 +1,27 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="Tedd.TcpTunnel" Manufacturer="Tedd" Version="$(var.PackageVersion)"
+           UpgradeCode="DD74D54D-8117-4606-B3ED-77670E733D5D" Scope="perMachine">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Tedd.TcpTunnel is already installed." Schedule="afterInstallInitialize" />
+    <MediaTemplate EmbedCab="yes" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/tedd/Tedd.TcpTunnel" />
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="Tedd.TcpTunnel">
+        <Component Id="Application">
+          <File Id="TunnelExecutable" Source="$(var.PublishDirectory)\tcptunnel.exe" KeyPath="yes" />
+          <Environment Id="ApplicationPath" Name="PATH" Value="[INSTALLFOLDER]" Part="last" Action="set" System="yes" />
+        </Component>
+        <Component Id="ExampleConfiguration"><File Source="..\..\tunnel.example.json" /></Component>
+        <Component Id="License"><File Source="..\..\LICENSE" /></Component>
+        <Component Id="ThirdPartyNotices"><File Source="..\..\THIRD-PARTY-NOTICES.txt" /></Component>
+        <Component Id="InstallationKind"><File Source="install-kind.txt" /></Component>
+      </Directory>
+    </StandardDirectory>
+    <Feature Id="Main" Title="Tedd.TcpTunnel" Level="1">
+      <ComponentRef Id="Application" /><ComponentRef Id="ExampleConfiguration" />
+      <ComponentRef Id="License" /><ComponentRef Id="InstallationKind" />
+      <ComponentRef Id="ThirdPartyNotices" />
+    </Feature>
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+  </Package>
+</Wix>

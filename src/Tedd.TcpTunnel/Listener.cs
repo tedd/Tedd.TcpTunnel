@@ -1,118 +1,129 @@
-﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Data;
-using System.Diagnostics;
-using System.IO.Pipelines;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
 
-namespace Tedd.TcpTunnel
+namespace Tedd.TcpTunnel;
+
+public sealed class Listener
 {
-    public class TcpTunnelSettings
+    private readonly ForwardOptions _options;
+    private readonly Action<TunnelEvent>? _log;
+    private readonly ConcurrentDictionary<long, Task> _connections = new();
+    private readonly TaskCompletionSource<IPEndPoint> _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _started;
+    private long _nextId;
+    public Task<IPEndPoint> Ready => _ready.Task;
+    public int ActiveConnections => _connections.Count;
+
+    public Listener(ForwardOptions options, Action<TunnelEvent>? log = null)
+    { options.Validate(); _options = options; _log = log; }
+
+    public async Task Start(CancellationToken cancellationToken = default)
     {
-        public string ListenAddress;
-        public int ListenPort;
-        public string RemoteHost;
-        public int RemotePort;
-        public bool IsClient;
+        if (Interlocked.Exchange(ref _started, 1) != 0) throw new InvalidOperationException("Listener can only be started once.");
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var limit = new SemaphoreSlim(_options.MaxConnections);
+        Socket? listener = null;
+        PcapWriter? capture = null;
+        try
+        {
+            listener = new Socket(IPAddress.Parse(_options.ListenAddress).AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            capture = _options.Capture.Directory is null ? null : new PcapWriter(_options.Name, _options.Capture);
+            if (listener.AddressFamily == AddressFamily.InterNetworkV6) listener.DualMode = _options.Socket.DualMode;
+            if (OperatingSystem.IsWindows()) listener.ExclusiveAddressUse = !_options.Socket.ReuseAddress;
+            if (_options.Socket.ReuseAddress) listener.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            listener.Bind(new IPEndPoint(IPAddress.Parse(_options.ListenAddress), _options.ListenPort));
+            listener.Listen(_options.Backlog);
+            var endpoint = (IPEndPoint)listener.LocalEndPoint!;
+            _ready.TrySetResult(endpoint);
+            Log("info", $"Listening on {endpoint} ({_options.Mode}, {_options.Execution}).");
+            while (true)
+            {
+                await limit.WaitAsync(stop.Token).ConfigureAwait(false);
+                Socket accepted;
+                try { accepted = await listener.AcceptAsync(stop.Token).ConfigureAwait(false); }
+                catch { limit.Release(); throw; }
+                var id = Interlocked.Increment(ref _nextId);
+                var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                async Task ProcessTrackedAsync()
+                {
+                    await start.Task.ConfigureAwait(false);
+                    try { await ProcessAsync(accepted, capture, stop.Token).ConfigureAwait(false); }
+                    finally { limit.Release(); _connections.TryRemove(id, out var ignored); }
+                }
+                var task = ProcessTrackedAsync();
+                _connections[id] = task;
+                start.SetResult();
+            }
+        }
+        catch (OperationCanceledException) when (stop.IsCancellationRequested) { _ready.TrySetCanceled(stop.Token); }
+        catch (Exception ex) { _ready.TrySetException(ex); throw; }
+        finally
+        {
+            await stop.CancelAsync().ConfigureAwait(false);
+            listener?.Dispose();
+            try { await Task.WhenAll(_connections.Values).ConfigureAwait(false); }
+            finally { capture?.Dispose(); }
+        }
     }
-    public class Listener
+
+    private async Task ProcessAsync(Socket accepted, PcapWriter? capture, CancellationToken token)
     {
-        private readonly Random _rnd = new();
-        private readonly ConcurrentDictionary<Connection, byte> _connections = new();
-        private readonly TcpTunnelSettings _settings;
-
-        public Listener(TcpTunnelSettings settings)
+        using (accepted)
         {
-            _settings = settings;
-        }
-
-        static internal void Debug(string line) => Console.WriteLine($"[Debug] {line}");
-        static internal void Error(string line) => Console.WriteLine($"[Error] {line}");
-        static internal void Info(string line) => Console.WriteLine($"[Info] {line}");
-
-        public async Task Start(CancellationToken cancellationToken)
-        {
-            // Resolve listening address and port
-            IPAddress ipAddress = IPAddress.Any;
+            var socksReady = false;
             try
             {
-                if (!string.IsNullOrWhiteSpace(_settings.ListenAddress))
-                    ipAddress = await ResolveAddress(_settings.ListenAddress);
-            }
-            catch (Exception exception)
-            {
-                Error($"Error connecting to remote host: {exception.Message}");
-            }
-            Socket listener = null;
-            try
-            {
-                // Set up listening
-                var localEndPoint = new IPEndPoint(ipAddress, _settings.ListenPort);
-                listener = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                listener.Bind(localEndPoint);
-                listener.Listen(10);
-            }
-            catch (Exception exception)
-            {
-                Error($"Error listening on {ipAddress}:{_settings.ListenPort} host: {exception.Message}");
-            }
-            Info($"Info listening on {ipAddress}:{_settings.ListenPort}...");
-            // Wait for incomping connection
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                // Accept connection
-                var listenSocket = await listener.AcceptAsync();
-                Socket remoteSocket = null;
-                try
+                SocketTuning.Apply(accepted, _options.Socket, message => Log("warning", message));
+                var host = _options.RemoteHost;
+                var port = _options.RemotePort;
+                if (_options.Mode == TunnelMode.Socks5)
                 {
-                    remoteSocket = await RemoteConnect();
+                    using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+                    deadline.CancelAfter(_options.HandshakeTimeoutMilliseconds);
+                    (host, port) = await Socks5.ReadTargetAsync(accepted, deadline.Token).ConfigureAwait(false);
+                    socksReady = true;
                 }
-                catch (Exception exception)
+                using var serverSession = _options.Mode == TunnelMode.Server
+                    ? await TunnelHandshake.NegotiateAsync(accepted, _options, token).ConfigureAwait(false) : null;
+                using var remote = await Connector.ConnectAsync(host, port, _options.Retry, token,
+                    (ex, attempt) => Log("warning", $"Connect attempt {attempt} to {host}:{port} failed.", ex)).ConfigureAwait(false);
+                SocketTuning.Apply(remote, _options.Socket, message => Log("warning", message));
+                if (socksReady) { await Socks5.ReplyAsync(accepted, 0, (IPEndPoint)remote.LocalEndPoint!, token).ConfigureAwait(false); socksReady = false; }
+                using var clientSession = _options.Mode == TunnelMode.Client
+                    ? await TunnelHandshake.NegotiateAsync(remote, _options, token).ConfigureAwait(false) : null;
+                await new TunnelConnection(accepted, remote, _options, capture, serverSession ?? clientSession).RunAsync(token).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (token.IsCancellationRequested && ex is OperationCanceledException or SocketException or ObjectDisposedException or IOException) { }
+            catch (Exception ex)
+            {
+                Log("error", "Connection terminated.", ex);
+                if (socksReady)
                 {
-                    Error($"Error connecting to remote host: {exception.Message}");
+                    try { await Socks5.ReplyAsync(accepted, 5, new IPEndPoint(IPAddress.Any, 0), token).ConfigureAwait(false); }
+                    catch (Exception replyError) when (replyError is IOException or SocketException or OperationCanceledException or ObjectDisposedException) { }
                 }
-
-                // Create connection handler and execute in background
-                var connection = new Connection(_settings, listenSocket, remoteSocket);
-                Task.Run(() => connection.Start());
             }
         }
+    }
 
-        private async Task<Socket> RemoteConnect()
+    private void Log(string level, string message, Exception? exception = null) => _log?.Invoke(new(_options.Name, level, message, exception));
+}
+
+public sealed class TunnelHost
+{
+    public IReadOnlyList<Listener> Listeners { get; }
+    public TunnelHost(TunnelOptions options, Action<TunnelEvent>? log = null)
+    { options.Validate(); Listeners = options.Forwards.Select(f => new Listener(f, log)).ToArray(); }
+
+    public async Task RunAsync(CancellationToken token = default)
+    {
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(token);
+        async Task Run(Listener listener)
         {
-            var remoteIp = await ResolveAddress(_settings.RemoteHost);
-            var remoteEP = new IPEndPoint(remoteIp, _settings.RemotePort);
-
-            // Set up socket
-            var remoteSocket = new Socket(remoteEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            // Connect
-            Debug($"Connecting to {remoteIp}:{_settings.RemotePort}");
-            await remoteSocket.ConnectAsync(remoteEP);
-            return remoteSocket;
+            try { await listener.Start(stop.Token).ConfigureAwait(false); }
+            finally { await stop.CancelAsync().ConfigureAwait(false); }
         }
-
-        private async Task<IPAddress> ResolveAddress(string address)
-        {
-            if (IPAddress.TryParse(_settings.RemoteHost, out var ip))
-                return ip;
-
-            Debug($"Resolving {address}");
-            // Resolve hostname
-            var ipHostInfo = await Dns.GetHostEntryAsync(address);
-            // Puck a random ip from what was returned
-            Debug($"Resolved {address} to {string.Join(", ", ipHostInfo.AddressList.Select(s => s.ToString()))}");
-            IPAddress result = null;
-            lock (_rnd)
-                result = ipHostInfo.AddressList[_rnd.Next(0, ipHostInfo.AddressList.Length)];
-            Debug($"Resolved {address} to {result.ToString()}");
-            return result;
-        }
-
-
+        await Task.WhenAll(Listeners.Select(Run)).ConfigureAwait(false);
     }
 }

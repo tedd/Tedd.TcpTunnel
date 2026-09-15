@@ -1,0 +1,25 @@
+{
+  "Forwards": [
+    {
+      "Name": "web",
+      "Mode": "Raw",
+      "ListenAddress": "127.0.0.1",
+      "ListenPort": 8080,
+      "RemoteHost": "127.0.0.1",
+      "RemotePort": 80,
+      "Encryption": { "Algorithm": "None" },
+      "BufferSize": 65536,
+      "BatchMilliseconds": 0,
+      "Execution": "Async",
+      "Retry": { "Attempts": 3 },
+      "Socket": { "NoDelay": true, "KeepAlive": true }
+    }
+  ],
+  "Update": {
+    "CheckOnStartup": true,
+    "CheckIntervalHours": 24,
+    "Repository": "tedd/Tedd.TcpTunnel",
+    "IncludePrerelease": false,
+    "InstallKind": "auto"
+  }
+}

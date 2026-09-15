@@ -1,19 +1,9 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="BenchmarkDotNet" Version="0.13.12" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.16.0-preview.1" />
+    <ProjectReference Include="../Tedd.TcpTunnel/Tedd.TcpTunnel.csproj" />
+    <ProjectReference Include="../Tedd.TcpTunnel.Archive/Tedd.TcpTunnel.Archive.csproj" />
   </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Tedd.TcpTunnel\Tedd.TcpTunnel.csproj" />
-    <ProjectReference Include="..\Tedd.TcpTunnel.Archive\Tedd.TcpTunnel.Archive.csproj" />
-  </ItemGroup>
-
 </Project>

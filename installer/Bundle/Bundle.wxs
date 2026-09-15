@@ -1,0 +1,10 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+  <Bundle Name="Tedd.TcpTunnel Setup" Manufacturer="Tedd" Version="$(var.PackageVersion)"
+          UpgradeCode="A675A4A3-3126-4289-8CF3-F557EBB785DC">
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense"
+        LicenseUrl="https://github.com/tedd/Tedd.TcpTunnel/blob/main/LICENSE" />
+    </BootstrapperApplication>
+    <Chain><MsiPackage SourceFile="$(var.MsiPath)" /></Chain>
+  </Bundle>
+</Wix>

@@ -1,0 +1,533 @@
+{
+  "generatedAtUtc": "2026-09-11T19:15:13.0125724+00:00",
+  "machine": {
+    "OperatingSystem": "Microsoft Windows 10.0.26200",
+    "Architecture": "X64",
+    "Processor": "AMD64 Family 25 Model 33 Stepping 0, AuthenticAMD",
+    "LogicalProcessors": 32,
+    "Framework": ".NET 11.0.0-rc.1.26425.128"
+  },
+  "methodology": {
+    "transport": "Application \u2192 Client \u2192 Server \u2192 destination sink over IPv4 loopback",
+    "execution": "Async",
+    "bufferBytes": 1048576,
+    "batchMilliseconds": 0,
+    "warmups": 1,
+    "iterations": 7,
+    "targetMiB": 64,
+    "reportedValue": "Median application-data throughput; peak retained to show the highest observed run"
+  },
+  "files": [
+    {
+      "name": "mshtml.dll",
+      "bytes": 24023040,
+      "sha256": "4093242363e953e6172b87f5b66ec42deaf63bb1fb12a2a48590c08f8fb6ec06"
+    },
+    {
+      "name": "Windows.UI.Xaml.dll",
+      "bytes": 17866752,
+      "sha256": "b0a1d10f9766565658bf210ee521861dfa16fb22b331925fc1f039ef626ad2cb"
+    },
+    {
+      "name": "shell32.dll",
+      "bytes": 7947424,
+      "sha256": "a7779772d197cd94a2309d4739b85587d7e86a20e406baec4932307d71bbc2d2"
+    }
+  ],
+  "results": [
+    {
+      "name": "None",
+      "codec": "None",
+      "encryption": "None",
+      "settings": "uncompressed framing",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 197.5,
+      "medianMiBPerSecond": 165.3,
+      "measurementsMiBPerSecond": [
+        100.9,
+        129.8,
+        144.1,
+        165.3,
+        169.7,
+        182.4,
+        197.5
+      ]
+    },
+    {
+      "name": "LZ4 fastest",
+      "codec": "Lz4",
+      "encryption": "None",
+      "settings": "level=Fastest",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 126.3,
+      "medianMiBPerSecond": 119.6,
+      "measurementsMiBPerSecond": [
+        116.5,
+        118.5,
+        118.6,
+        119.6,
+        125,
+        126.3,
+        126.3
+      ]
+    },
+    {
+      "name": "LZ4 HC",
+      "codec": "Lz4",
+      "encryption": "None",
+      "settings": "level=SmallestSize",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 7.3,
+      "medianMiBPerSecond": 7.1,
+      "measurementsMiBPerSecond": [
+        6.7,
+        6.9,
+        7,
+        7.1,
+        7.2,
+        7.2,
+        7.3
+      ]
+    },
+    {
+      "name": "Brotli q1",
+      "codec": "Brotli",
+      "encryption": "None",
+      "settings": "quality=1, window=22, history=false",
+      "dataSet": "Repeated mshtml.dll",
+      "transferredBytes": 72069120,
+      "bestMiBPerSecond": 96.8,
+      "medianMiBPerSecond": 90.7,
+      "measurementsMiBPerSecond": [
+        87,
+        88,
+        88.2,
+        90.7,
+        93.2,
+        94.3,
+        96.8
+      ]
+    },
+    {
+      "name": "Brotli q4",
+      "codec": "Brotli",
+      "encryption": "None",
+      "settings": "quality=4, window=22, history=false",
+      "dataSet": "Repeated mshtml.dll",
+      "transferredBytes": 72069120,
+      "bestMiBPerSecond": 41.9,
+      "medianMiBPerSecond": 34.1,
+      "measurementsMiBPerSecond": [
+        33.5,
+        33.6,
+        33.9,
+        34.1,
+        36.4,
+        36.7,
+        41.9
+      ]
+    },
+    {
+      "name": "Brotli q9",
+      "codec": "Brotli",
+      "encryption": "None",
+      "settings": "quality=9, window=22, history=false",
+      "dataSet": "Repeated mshtml.dll",
+      "transferredBytes": 72069120,
+      "bestMiBPerSecond": 9.9,
+      "medianMiBPerSecond": 9.6,
+      "measurementsMiBPerSecond": [
+        9.4,
+        9.5,
+        9.6,
+        9.6,
+        9.7,
+        9.8,
+        9.9
+      ]
+    },
+    {
+      "name": "Brotli q4 \u002B history",
+      "codec": "Brotli",
+      "encryption": "None",
+      "settings": "quality=4, window=22, history=true",
+      "dataSet": "Repeated mshtml.dll",
+      "transferredBytes": 72069120,
+      "bestMiBPerSecond": 37.7,
+      "medianMiBPerSecond": 35.3,
+      "measurementsMiBPerSecond": [
+        32.8,
+        33,
+        34.8,
+        35.3,
+        37.5,
+        37.7,
+        37.7
+      ]
+    },
+    {
+      "name": "Brotli q9 \u002B history",
+      "codec": "Brotli",
+      "encryption": "None",
+      "settings": "quality=9, window=22, history=true",
+      "dataSet": "Repeated mshtml.dll",
+      "transferredBytes": 72069120,
+      "bestMiBPerSecond": 5.2,
+      "medianMiBPerSecond": 5.1,
+      "measurementsMiBPerSecond": [
+        4.6,
+        4.7,
+        5,
+        5.1,
+        5.1,
+        5.1,
+        5.2
+      ]
+    },
+    {
+      "name": "Zstandard -5",
+      "codec": "Zstandard",
+      "encryption": "None",
+      "settings": "level=-5",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 158,
+      "medianMiBPerSecond": 137.4,
+      "measurementsMiBPerSecond": [
+        114.3,
+        125.9,
+        127.4,
+        137.4,
+        140.9,
+        146.9,
+        158
+      ]
+    },
+    {
+      "name": "Zstandard 3",
+      "codec": "Zstandard",
+      "encryption": "None",
+      "settings": "level=3",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 90.1,
+      "medianMiBPerSecond": 86,
+      "measurementsMiBPerSecond": [
+        81.5,
+        83.1,
+        83.5,
+        86,
+        87.5,
+        89.7,
+        90.1
+      ]
+    },
+    {
+      "name": "Zstandard 9",
+      "codec": "Zstandard",
+      "encryption": "None",
+      "settings": "level=9",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 36.7,
+      "medianMiBPerSecond": 34,
+      "measurementsMiBPerSecond": [
+        31.3,
+        31.3,
+        32.4,
+        34,
+        34.6,
+        35.1,
+        36.7
+      ]
+    },
+    {
+      "name": "Deflate fastest",
+      "codec": "Deflate",
+      "encryption": "None",
+      "settings": "level=Fastest",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 97,
+      "medianMiBPerSecond": 90.4,
+      "measurementsMiBPerSecond": [
+        85.6,
+        88.1,
+        89.6,
+        90.4,
+        94.1,
+        95.8,
+        97
+      ]
+    },
+    {
+      "name": "Deflate optimal",
+      "codec": "Deflate",
+      "encryption": "None",
+      "settings": "level=Optimal",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 39.7,
+      "medianMiBPerSecond": 37.5,
+      "measurementsMiBPerSecond": [
+        35.5,
+        36.1,
+        36.3,
+        37.5,
+        39.2,
+        39.6,
+        39.7
+      ]
+    },
+    {
+      "name": "GZip fastest",
+      "codec": "GZip",
+      "encryption": "None",
+      "settings": "level=Fastest",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 86.2,
+      "medianMiBPerSecond": 76.6,
+      "measurementsMiBPerSecond": [
+        72.2,
+        74.1,
+        75.7,
+        76.6,
+        80.6,
+        83.8,
+        86.2
+      ]
+    },
+    {
+      "name": "GZip optimal",
+      "codec": "GZip",
+      "encryption": "None",
+      "settings": "level=Optimal",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 39.4,
+      "medianMiBPerSecond": 36.5,
+      "measurementsMiBPerSecond": [
+        34.1,
+        34.2,
+        35,
+        36.5,
+        36.8,
+        38.2,
+        39.4
+      ]
+    },
+    {
+      "name": "ZLib fastest",
+      "codec": "ZLib",
+      "encryption": "None",
+      "settings": "level=Fastest",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 98.9,
+      "medianMiBPerSecond": 92.1,
+      "measurementsMiBPerSecond": [
+        84.4,
+        88.1,
+        88.6,
+        92.1,
+        92.6,
+        95.7,
+        98.9
+      ]
+    },
+    {
+      "name": "ZLib optimal",
+      "codec": "ZLib",
+      "encryption": "None",
+      "settings": "level=Optimal",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 39.7,
+      "medianMiBPerSecond": 38.8,
+      "measurementsMiBPerSecond": [
+        33.1,
+        33.3,
+        35.5,
+        38.8,
+        39,
+        39.2,
+        39.7
+      ]
+    },
+    {
+      "name": "ChaCha20-Poly1305",
+      "codec": "None",
+      "encryption": "ChaCha20Poly1305",
+      "settings": "encryption=ChaCha20Poly1305",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 119.6,
+      "medianMiBPerSecond": 107.5,
+      "measurementsMiBPerSecond": [
+        101.3,
+        101.6,
+        106.2,
+        107.5,
+        109.5,
+        109.7,
+        119.6
+      ]
+    },
+    {
+      "name": "AES-256-GCM",
+      "codec": "None",
+      "encryption": "AesGcm",
+      "settings": "encryption=AesGcm",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 174.3,
+      "medianMiBPerSecond": 134.1,
+      "measurementsMiBPerSecond": [
+        106.1,
+        110.8,
+        120.8,
+        134.1,
+        156,
+        161.8,
+        174.3
+      ]
+    },
+    {
+      "name": "AES-256-CCM",
+      "codec": "None",
+      "encryption": "AesCcm",
+      "settings": "encryption=AesCcm",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 156.3,
+      "medianMiBPerSecond": 116.5,
+      "measurementsMiBPerSecond": [
+        107.1,
+        110.3,
+        112.3,
+        116.5,
+        119.7,
+        123.3,
+        156.3
+      ]
+    },
+    {
+      "name": "LZ4 \u002B ChaCha20-Poly1305",
+      "codec": "Lz4",
+      "encryption": "ChaCha20Poly1305",
+      "settings": "level=Fastest, encryption=ChaCha20Poly1305",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 120.8,
+      "medianMiBPerSecond": 113.9,
+      "measurementsMiBPerSecond": [
+        91.5,
+        91.6,
+        109,
+        113.9,
+        115,
+        117,
+        120.8
+      ]
+    },
+    {
+      "name": "LZ4 \u002B AES-256-GCM",
+      "codec": "Lz4",
+      "encryption": "AesGcm",
+      "settings": "level=Fastest, encryption=AesGcm",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 148.7,
+      "medianMiBPerSecond": 131.5,
+      "measurementsMiBPerSecond": [
+        115.1,
+        116.2,
+        123.9,
+        131.5,
+        132.7,
+        143,
+        148.7
+      ]
+    },
+    {
+      "name": "LZ4 \u002B AES-256-CCM",
+      "codec": "Lz4",
+      "encryption": "AesCcm",
+      "settings": "level=Fastest, encryption=AesCcm",
+      "dataSet": "Mixed DLL set",
+      "transferredBytes": 73860256,
+      "bestMiBPerSecond": 133.5,
+      "medianMiBPerSecond": 115.5,
+      "measurementsMiBPerSecond": [
+        98.4,
+        102.2,
+        107,
+        115.5,
+        116.9,
+        124.9,
+        133.5
+      ]
+    },
+    {
+      "name": "Brotli history \u002B ChaCha20",
+      "codec": "Brotli",
+      "encryption": "ChaCha20Poly1305",
+      "settings": "quality=4, window=22, history=true, encryption=ChaCha20Poly1305",
+      "dataSet": "Repeated mshtml.dll",
+      "transferredBytes": 72069120,
+      "bestMiBPerSecond": 36,
+      "medianMiBPerSecond": 34.9,
+      "measurementsMiBPerSecond": [
+        31.6,
+        32.7,
+        34.6,
+        34.9,
+        36,
+        36,
+        36
+      ]
+    },
+    {
+      "name": "Brotli history \u002B AES-GCM",
+      "codec": "Brotli",
+      "encryption": "AesGcm",
+      "settings": "quality=4, window=22, history=true, encryption=AesGcm",
+      "dataSet": "Repeated mshtml.dll",
+      "transferredBytes": 72069120,
+      "bestMiBPerSecond": 38.7,
+      "medianMiBPerSecond": 36.8,
+      "measurementsMiBPerSecond": [
+        34.1,
+        34.1,
+        35,
+        36.8,
+        36.9,
+        37.1,
+        38.7
+      ]
+    },
+    {
+      "name": "Brotli history \u002B AES-CCM",
+      "codec": "Brotli",
+      "encryption": "AesCcm",
+      "settings": "quality=4, window=22, history=true, encryption=AesCcm",
+      "dataSet": "Repeated mshtml.dll",
+      "transferredBytes": 72069120,
+      "bestMiBPerSecond": 37.4,
+      "medianMiBPerSecond": 36.2,
+      "measurementsMiBPerSecond": [
+        31.9,
+        34.9,
+        36.1,
+        36.2,
+        36.2,
+        36.2,
+        37.4
+      ]
+    }
+  ]
+}

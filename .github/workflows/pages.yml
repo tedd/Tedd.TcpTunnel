@@ -1,0 +1,29 @@
+name: Website
+on:
+  push:
+    branches: [deploy]
+    paths: ['website/**', 'scripts/test-website.cjs', '.github/workflows/pages.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: node --check website/app.js
+      - run: node --test scripts/test-website.cjs
+      - uses: actions/configure-pages@v6.0.0
+      - uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: website
+      - uses: actions/deploy-pages@v5.0.1
+        id: deployment
