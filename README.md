@@ -873,7 +873,9 @@ PowerShell 7 packaging commands:
 ./scripts/package.ps1 -Runtime linux-arm64
 ```
 
-Outputs are under `artifacts/packages`. Installers use WiX 5.0.2; WiX 6/7 have additional
+Outputs are under `artifacts/packages`. Windows builds include a directly runnable
+`tcptunnel-VERSION-win-ARCH.exe` client/server executable in addition to the ZIP, MSI,
+and setup EXE. Installers use WiX 5.0.2; WiX 6/7 have additional
 maintenance-fee terms and are not upgraded automatically. MSI versions use the numeric
 release version; publish increasing numeric versions for reliable installer upgrade ordering.
 CI extracts each native-platform ZIP, starts the executable, validates the bundled example,

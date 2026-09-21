@@ -310,12 +310,15 @@ async function loadDownloads() {
       const container = document.querySelector(platform === 'win' ? '#windows-downloads' : '#linux-downloads');
       const links = [];
       for (const arch of ['x64', 'arm64']) {
-        for (const kind of platform === 'win' ? ['.msi', '-setup.exe', '.zip'] : ['.zip']) {
+        for (const kind of platform === 'win' ? ['.exe', '-setup.exe', '.msi', '.zip'] : ['.zip']) {
           const asset = [...installState.assets.values()].find(item => item.name.endsWith(`-${platform}-${arch}${kind}`));
           if (!asset) continue;
           const link = document.createElement('a');
           link.href = asset.url;
-          link.textContent = `${arch === 'arm64' ? 'ARM64' : 'x64'} · ${kind === '-setup.exe' ? 'EXE' : kind.slice(1).toUpperCase()} ↓`;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          const label = kind === '.exe' ? 'Portable EXE' : kind === '-setup.exe' ? 'Installer EXE' : kind.slice(1).toUpperCase();
+          link.textContent = `${arch === 'arm64' ? 'ARM64' : 'x64'} · ${label} ↓`;
           links.push(link);
         }
       }

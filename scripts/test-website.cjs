@@ -5,10 +5,35 @@ const path = require('node:path');
 const vm = require('node:vm');
 const html = fs.readFileSync(path.join(__dirname, '../website/index.html'), 'utf8');
 const script = fs.readFileSync(path.join(__dirname, '../website/app.js'), 'utf8');
+const packageScript = fs.readFileSync(path.join(__dirname, 'package.ps1'), 'utf8');
+const buildWorkflow = fs.readFileSync(path.join(__dirname, '../.github/workflows/build.yml'), 'utf8');
 
 test('website describes dual-stack ACLs, service operation, logging, and SQL Server origin', () => {
   for (const text of ['IPv4', 'IPv6', 'CIDR', 'Windows services', 'systemd', 'connection attempts', 'Microsoft SQL Server (MSSQL)', 'compress and encrypt'])
     assert(html.includes(text), `Missing website capability: ${text}`);
+});
+
+test('website presents standalone executable and library as primary distributions', () => {
+  for (const text of ['Download the executable', 'Install the .NET library', 'One executable for client or server', 'Portable EXE'])
+    assert(html.includes(text) || script.includes(text), `Missing distribution option: ${text}`);
+});
+
+test('external links escape an embedding iframe safely', () => {
+  const links = [...html.matchAll(/<a\b[^>]*\bhref="https:[^"]+"[^>]*>/g)].map(match => match[0]);
+  assert(links.length > 0);
+  for (const link of links) {
+    assert(link.includes('target="_blank"'), `External link has no browsing target: ${link}`);
+    assert(link.includes('rel="noopener noreferrer"'), `External link has no opener isolation: ${link}`);
+  }
+  assert(script.includes("link.target = '_blank'"));
+  assert(script.includes("link.rel = 'noopener noreferrer'"));
+});
+
+test('Windows client/server executable is uploaded as a build and release artifact', () => {
+  assert(packageScript.includes('tcptunnel-$Version-$Runtime.exe'));
+  assert(buildWorkflow.includes('artifacts/packages/*.exe'));
+  assert(buildWorkflow.includes('gh release create "$RELEASE_TAG" "${args[@]}" -- *.zip *.msi *.exe SHA256SUMS'));
+  assert(script.includes("['.exe', '-setup.exe', '.msi', '.zip']"));
 });
 
 function builder() {

@@ -23,6 +23,9 @@ Copy-Item -LiteralPath (Join-Path $root 'LICENSE'), (Join-Path $root 'THIRD-PART
 Set-Content -LiteralPath (Join-Path $output 'install-kind.txt') -Value 'zip' -NoNewline
 $executable = if ($Runtime.StartsWith('win-')) { 'tcptunnel.exe' } else { 'tcptunnel' }
 if (!(Test-Path -LiteralPath (Join-Path $output $executable))) { throw 'Published executable is missing.' }
+if ($Runtime.StartsWith('win-')) {
+    Copy-Item -LiteralPath (Join-Path $output $executable) -Destination (Join-Path $packages "tcptunnel-$Version-$Runtime.exe") -Force
+}
 # Select the exact distribution contents; stale build output never enters the archive.
 $zipPath = Join-Path $packages "tcptunnel-$Version-$Runtime.zip"
 Add-Type -AssemblyName System.IO.Compression
